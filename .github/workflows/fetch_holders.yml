@@ -37,6 +37,7 @@ jobs:
 
       - name: Commit & Push 資料
         run: |
+          python scripts/update_index.py
           git config user.name "Data Bot 🤖"
           git config user.email "bot@noreply.github.com"
           git add data/
