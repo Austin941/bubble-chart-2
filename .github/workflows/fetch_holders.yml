@@ -2,7 +2,7 @@ name: 📊 每週抓股權分散表
 
 on:
   schedule:
-    - cron: '30 10 * * 5'   # 每週五 18:30 台灣時間（UTC+8 → UTC 10:30）
+    - cron: '0 1 * * 6'   # 每週六 09:00 台灣時間（UTC+8 → UTC 01:00）
   workflow_dispatch:          # 允許在 GitHub 網頁手動觸發
 
 jobs:
