@@ -33,7 +33,7 @@ def main():
     with open(INDEX_PATH, "w", encoding="utf-8") as f:
         json.dump(index_data, f, ensure_ascii=False, indent=2)
 
-    print(f"✅ index.json 更新完成！ (大戶: {len(holders)} 天, 分點: {len(brokers)} 天)")
+    print(f"index.json updated! (holders: {len(holders)}, brokers: {len(brokers)})")
 
 if __name__ == "__main__":
     main()
