@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>泡泡圖 2.0 — 台股籌碼分析</title>
+  <meta name="description" content="台股千張大戶、散戶持股分布與分點進出視覺化泡泡圖，每日自動更新。" />
+  <meta property="og:title" content="泡泡圖 2.0 — 台股籌碼分析" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- ECharts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+
+<!-- ── 頁首 ──────────────────────────────────────────── -->
+<header id="app-header">
+  <div class="header-inner">
+    <div class="logo-area">
+      <span class="logo-icon">●</span>
+      <span class="logo-text">泡泡圖 <em>2.0</em></span>
+    </div>
+    <nav class="header-nav">
+      <button id="tab-bubble"   class="nav-btn active" data-view="bubble">泡泡圖</button>
+      <button id="tab-holders"  class="nav-btn"        data-view="holders">大戶趨勢</button>
+      <button id="tab-brokers"  class="nav-btn"        data-view="brokers">分點明細</button>
+    </nav>
+    <div class="header-meta">
+      <span id="update-label" class="update-badge">載入中…</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── 控制列 ─────────────────────────────────────────── -->
+<section id="control-bar">
+  <div class="control-inner">
+
+    <!-- 搜尋框 -->
+    <div class="search-wrap">
+      <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+      <input id="search-input" type="text" placeholder="搜尋股票代號或名稱…" autocomplete="off" />
+    </div>
+
+    <!-- 泡泡圖 X/Y 軸選擇 -->
+    <div class="axis-selects" id="axis-controls">
+      <label>X 軸
+        <select id="x-axis-select">
+          <option value="whale_pct" selected>大戶持股 (%)</option>
+          <option value="retail_pct">散戶持股 (%)</option>
+          <option value="big_vs_retail">大戶 − 散戶差值</option>
+        </select>
+      </label>
+      <label>Y 軸
+        <select id="y-axis-select">
+          <option value="broker_net" selected>分點淨買超（張）</option>
+          <option value="total_holders">股東人數</option>
+          <option value="whale_holders">千張大戶人數</option>
+        </select>
+      </label>
+      <label>大小
+        <select id="size-select">
+          <option value="total_holders" selected>股東人數</option>
+          <option value="whale_pct">大戶比例</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- 日期選擇 -->
+    <div class="date-controls">
+      <label>資料日期
+        <select id="date-select"></select>
+      </label>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── 主視圖：泡泡圖 ────────────────────────────────── -->
+<main id="main-area">
+
+  <!-- 載入動畫 -->
+  <div id="loading-overlay">
+    <div class="spinner-wrap">
+      <div class="spinner"></div>
+      <p class="spinner-text">載入資料中…</p>
+    </div>
+  </div>
+
+  <!-- 泡泡圖容器 -->
+  <div id="view-bubble" class="view active">
+    <div id="bubble-chart"></div>
+  </div>
+
+  <!-- 大戶趨勢 -->
+  <div id="view-holders" class="view">
+    <div class="stock-detail-header">
+      <h2 id="holders-title">請在泡泡圖點擊股票</h2>
+    </div>
+    <div id="holders-chart"></div>
+  </div>
+
+  <!-- 分點明細 -->
+  <div id="view-brokers" class="view">
+    <div class="stock-detail-header">
+      <h2 id="brokers-title">請在泡泡圖點擊股票</h2>
+    </div>
+    <div id="brokers-table-wrap">
+      <div class="broker-panel" id="panel-buy">
+        <h3>🟢 主力買超前 20 分點</h3>
+        <table id="table-buy"><thead><tr><th>分點</th><th>名稱</th><th>買進</th><th>賣出</th><th>淨買超</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="broker-panel" id="panel-sell">
+        <h3>🔴 主力賣超前 20 分點</h3>
+        <table id="table-sell"><thead><tr><th>分點</th><th>名稱</th><th>買進</th><th>賣出</th><th>淨賣超</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── 底部狀態列 ─────────────────────────────────────── -->
+<footer id="app-footer">
+  <span>資料來源：集保結算所 TDCC・FinMind</span>
+  <span id="stock-count">—</span>
+  <a href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
+</footer>
+
+<script src="src/data-loader.js"></script>
+<script src="src/filters.js"></script>
+<script src="src/bubble-chart.js"></script>
+</body>
+</html>

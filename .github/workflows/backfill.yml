@@ -1,0 +1,61 @@
+name: 🕐 手動補抓歷史資料
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_date:
+        description: '開始日期 (YYYY-MM-DD)'
+        required: true
+        default: '2024-01-01'
+      to_date:
+        description: '結束日期 (YYYY-MM-DD)'
+        required: true
+        default: '2025-07-01'
+      target:
+        description: '資料類型'
+        type: choice
+        options:
+          - both
+          - holders
+          - brokers
+        default: both
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360     # 大量歷史資料需要時間，允許最多 6 小時
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r scripts/requirements.txt
+
+      - name: 補抓歷史資料
+        run: |
+          python scripts/backfill.py \
+            --from "${{ inputs.from_date }}" \
+            --to   "${{ inputs.to_date }}" \
+            --target "${{ inputs.target }}"
+        env:
+          FINMIND_TOKEN: ${{ secrets.FINMIND_TOKEN }}
+
+      - name: Commit & Push 全部歷史資料
+        run: |
+          git config user.name "Data Bot 🤖"
+          git config user.email "bot@noreply.github.com"
+          git add data/
+          git diff --staged --quiet || (
+            git commit -m "🕐 [backfill] ${{ inputs.from_date }} ~ ${{ inputs.to_date }} (${{ inputs.target }})" &&
+            git push
+          )
