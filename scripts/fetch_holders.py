@@ -27,10 +27,13 @@ def fetch_tdcc_csv() -> pd.DataFrame:
     回傳欄位：資料日期, 證券代號, 持股分級, 人數, 股數, 占集保庫存數比例%
     """
     log.info(f"⬇  下載 TDCC CSV：{TDCC_CSV_URL}")
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     resp = requests.get(
         TDCC_CSV_URL,
         timeout=REQUEST_TIMEOUT,
         headers=get_request_headers(),
+        verify=False,
     )
     resp.raise_for_status()
     resp.encoding = "utf-8-sig"   # 處理 BOM
