@@ -51,6 +51,41 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById(viewId)?.classList.add('active');
     });
   });
+
+  // 直接搜尋分點排行
+  const brokerSearchBtn = document.getElementById('broker-search-btn');
+  const brokerSearchInput = document.getElementById('broker-search-input');
+  if (brokerSearchBtn && brokerSearchInput) {
+    const doBrokerSearch = async () => {
+      const q = brokerSearchInput.value.trim();
+      if (!q) return;
+      const dateStr = APP.selected.date || APP.dates.brokers[0];
+      if (!dateStr) return;
+      
+      const bData = APP.brokers[dateStr];
+      if (!bData) {
+        alert("目前尚無當日分點資料");
+        return;
+      }
+      
+      const stockInfo = bData.stocks?.[q];
+      if (!stockInfo) {
+        // 如果是名稱，嘗試反查代號
+        const matchedId = Object.keys(APP.meta?.stocks || {}).find(id => APP.meta.stocks[id].name === q || id === q);
+        if (matchedId && bData.stocks?.[matchedId]) {
+          renderBrokersTable(matchedId, APP.meta.stocks[matchedId].name, bData.stocks[matchedId]);
+        } else {
+          alert(`找不到 ${q} 的當日分點資料。`);
+        }
+      } else {
+        renderBrokersTable(q, getStockName(q), stockInfo);
+      }
+    };
+    brokerSearchBtn.addEventListener('click', doBrokerSearch);
+    brokerSearchInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter') doBrokerSearch();
+    });
+  }
 });
 
 // ── 過濾資料 ─────────────────────────────────────────────

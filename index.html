@@ -103,8 +103,12 @@
 
   <!-- 分點明細 -->
   <div id="view-brokers" class="view">
-    <div class="stock-detail-header">
-      <h2 id="brokers-title">請在泡泡圖點擊股票</h2>
+    <div class="stock-detail-header" style="flex-direction: column; align-items: center; gap: 16px;">
+      <div class="broker-direct-search" style="display: flex; gap: 8px; width: 100%; max-width: 400px; margin: 0 auto;">
+        <input id="broker-search-input" type="text" placeholder="輸入股票代號 (如: 2330)" autocomplete="off" style="flex: 1; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-100); color: var(--text-100); font-size: 1rem;" />
+        <button id="broker-search-btn" style="padding: 10px 20px; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; border: none; cursor: pointer; transition: 0.2s;">查詢排行</button>
+      </div>
+      <h2 id="brokers-title">請輸入代號或在泡泡圖點擊股票</h2>
     </div>
     <div id="brokers-table-wrap">
       <div class="broker-panel" id="panel-buy">
