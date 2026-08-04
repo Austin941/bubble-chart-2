@@ -294,14 +294,20 @@ function renderBrokersTable(stockId, stockName, brokersData) {
       return;
     }
     tbody.innerHTML = rows.map(r => {
-      const net = r.net ?? (r.buy - r.sell);
-      const cls = net >= 0 ? 'net-pos' : 'net-neg';
+      const netShares = r.net ?? (r.buy - r.sell);
+      const cls = netShares >= 0 ? 'net-pos' : 'net-neg';
+      
+      // 轉換成張數 (1張 = 1000股)
+      const buyLots = Math.round(r.buy / 1000);
+      const sellLots = Math.round(r.sell / 1000);
+      const netLots = Math.round(netShares / 1000);
+      
       return `<tr>
         <td>${r.broker_id || '—'}</td>
         <td>${r.broker_name || '—'}</td>
-        <td>${fmtNum(r.buy)}</td>
-        <td>${fmtNum(r.sell)}</td>
-        <td class="${cls}">${fmtNet(net)}</td>
+        <td>${fmtNum(buyLots)}</td>
+        <td>${fmtNum(sellLots)}</td>
+        <td class="${cls}">${fmtNet(netLots)}</td>
       </tr>`;
     }).join('');
   };
