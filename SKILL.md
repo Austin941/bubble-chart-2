@@ -86,3 +86,17 @@ Automatically load and apply the following skills based on context:
 2. **Empirical Verification Rule**:
    - NEVER declare a bug fixed or feature complete without executing validation commands (e.g., verifying builds or running tests).
    - If an error occurs, inspect the complete, un-truncated error log as the FIRST step before forming diagnostic hypotheses.
+
+---
+
+## 🚫 7. STRICT ANTI-MOCK & ANTI-DUMMY DATA DIRECTIVE (IRONCLAD RULE)
+
+1. **Absolute Prohibition of Unsanctioned Mock/Dummy Data**:
+   - When writing code, API clients, UI components, or backend logic, the AI is **STRICTLY FORBIDDEN** from inventing fake/mock data, hardcoded dummy arrays, simulated JSON, or dummy fallbacks to mask missing real endpoints, databases, or environment variables.
+2. **Mandatory Chinese Explanation Before Mocking**:
+   - If real APIs or datasets are unavailable, the AI MUST NOT silently introduce mock data.
+   - The AI MUST first explain to the user in Traditional Chinese:
+     - Exactly what real data/API is missing.
+     - Why real integration cannot proceed directly.
+     - The implications of using temporary placeholder data.
+   - The AI MUST obtain explicit user consent in Chinese before injecting any temporary mock data into the codebase.

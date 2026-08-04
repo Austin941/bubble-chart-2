@@ -3,9 +3,7 @@
 一次性或手動觸發，補抓指定日期範圍的歷史資料
 
 用法：
-  python backfill.py --from 2024-01-01 --to 2025-07-01 --target both
-  python backfill.py --from 2024-01-01 --to 2025-07-01 --target holders
-  python backfill.py --from 2024-01-01 --to 2025-07-01 --target brokers
+  python backfill.py --from 2024-01-01 --to 2025-07-01
 """
 import sys, os, argparse, time, requests
 import pandas as pd
@@ -19,7 +17,7 @@ from config import (
     DATASET_HOLDERS, DATASET_BROKERS,
     HOLDERS_DIR, BROKERS_DIR,
     WHALE_LEVEL, RETAIL_LEVELS, MID_LEVELS, HOLDER_LEVELS,
-    TOP_BROKER_N, BACKFILL_SLEEP, REQUEST_TIMEOUT,
+    BACKFILL_SLEEP, REQUEST_TIMEOUT,
 )
 from utils import retry, save_json, already_exists, ts, log
 
@@ -140,99 +138,21 @@ def backfill_holders(start: str, end: str):
 
 
 # ─────────────────────────────────────────────────────────
-# 補抓分點（FinMind Parquet 版）
-# ─────────────────────────────────────────────────────────
-@retry(max_attempts=3, delay=15)
-def fetch_broker_parquet_url(date: str) -> str:
-    resp = requests.get(
-        FINMIND_STORAGE_URL,
-        params={"dataset": DATASET_BROKERS, "date": date},
-        headers={"Authorization": f"Bearer {TOKEN}"},
-        timeout=REQUEST_TIMEOUT,
-    )
-    resp.raise_for_status()
-    body = resp.json()
-    if not body.get("data"):
-        raise ValueError(f"無資料：{date}")
-    return body["data"][0].get("download_url") or body["data"][0].get("url")
-
-
-def backfill_brokers(start: str, end: str):
-    log.info(f"📅 補抓分點資料：{start} ~ {end}（每個交易日）")
-    for date in weekday_range(start, end):
-        date_str = date.replace("-", "")
-        out_path = BROKERS_DIR / f"{date_str}.json"
-        if already_exists(out_path):
-            continue
-        try:
-            url = fetch_broker_parquet_url(date)
-            resp = requests.get(url, timeout=120)
-            resp.raise_for_status()
-            df = pd.read_parquet(BytesIO(resp.content))
-
-            if df.empty:
-                log.warning(f"  {date} Parquet 為空")
-                time.sleep(BACKFILL_SLEEP)
-                continue
-
-            df["net"] = pd.to_numeric(df.get("buy", 0), errors="coerce").fillna(0).astype(int) \
-                      - pd.to_numeric(df.get("sell", 0), errors="coerce").fillna(0).astype(int)
-
-            stocks = {}
-            for stock_id, grp in df.groupby("stock_id"):
-                sid = str(stock_id).strip().zfill(4)
-                top_buy  = grp.nlargest(TOP_BROKER_N, "buy")[["broker_id","broker_name","buy","sell","net"]].to_dict("records")
-                top_sell = grp.nsmallest(TOP_BROKER_N, "net")[["broker_id","broker_name","buy","sell","net"]].to_dict("records")
-                stocks[sid] = {
-                    "top_buy": top_buy,
-                    "top_sell": top_sell,
-                    "summary": {
-                        "total_buy": int(grp["buy"].sum()),
-                        "total_sell": int(grp["sell"].sum()),
-                        "net": int(grp["net"].sum()),
-                        "broker_count": len(grp),
-                    },
-                }
-
-            output = {
-                "date": date_str,
-                "source": "FinMind",
-                "fetched_at": ts(),
-                "total_stocks": len(stocks),
-                "stocks": stocks,
-            }
-            save_json(out_path, output)
-            log.info(f"  ✅ {date_str}：{len(stocks)} 支股票")
-
-        except ValueError as e:
-            log.warning(f"  ⏭  {date}：{e}（假日或無資料）")
-        except Exception as e:
-            log.error(f"  ❌ {date}：{e}")
-
-        time.sleep(BACKFILL_SLEEP)
-
-
-# ─────────────────────────────────────────────────────────
 # CLI 入口
 # ─────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="補抓歷史資料")
     parser.add_argument("--from", dest="from_date", required=True, help="開始日期 YYYY-MM-DD")
     parser.add_argument("--to",   dest="to_date",   required=True, help="結束日期 YYYY-MM-DD")
-    parser.add_argument("--target", choices=["both", "holders", "brokers"], default="both")
     args = parser.parse_args()
 
     if not TOKEN:
         log.error("請設定 FINMIND_TOKEN 環境變數")
         sys.exit(1)
 
-    log.info(f"backfill：{args.from_date} ~ {args.to_date}  target={args.target}")
+    log.info(f"backfill：{args.from_date} ~ {args.to_date}")
 
-    if args.target in ("both", "holders"):
-        backfill_holders(args.from_date, args.to_date)
-
-    if args.target in ("both", "brokers"):
-        backfill_brokers(args.from_date, args.to_date)
+    backfill_holders(args.from_date, args.to_date)
 
     log.info("backfill 全部完成 ✅")
 
