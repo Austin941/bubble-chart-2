@@ -59,8 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const doBrokerSearch = async () => {
       const q = brokerSearchInput.value.trim();
       if (!q) return;
-      const dateStr = APP.selected.date || APP.dates.brokers[0];
-      if (!dateStr) return;
+      // 強制使用最新的分點日期，不要用大戶的週日期
+      const dateStr = APP.dates.brokers[0];
+      if (!dateStr) {
+        alert("目前尚無分點資料");
+        return;
+      }
       
       const bData = APP.brokers[dateStr];
       if (!bData) {
