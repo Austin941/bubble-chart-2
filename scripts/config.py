@@ -9,8 +9,9 @@ DATA_DIR = ROOT / "data"
 HOLDERS_DIR = DATA_DIR / "holders"
 BROKERS_DIR = DATA_DIR / "brokers"
 META_DIR = DATA_DIR / "meta"
+BRANCHES_DIR = DATA_DIR / "branches"
 
-for _d in (HOLDERS_DIR, BROKERS_DIR, META_DIR):
+for _d in (HOLDERS_DIR, BROKERS_DIR, META_DIR, BRANCHES_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # ── TDCC API ─────────────────────────────────────────────

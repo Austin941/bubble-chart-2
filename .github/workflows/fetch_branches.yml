@@ -1,0 +1,92 @@
+name: Fetch TWSE Branches Data (Whole Market)
+
+on:
+  schedule:
+    # 台灣時間 17:00 等於 UTC 09:00
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  scrape_matrix:
+    name: Scrape Chunk ${{ matrix.chunk }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 將全市場切分為 10 等份 (0 到 9)
+        chunk: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scripts/requirements.txt
+
+      - name: Fetch Branches Data Chunk
+        # 為了避免 10 台機器同一個毫秒打向證交所，設定隨機延遲 (0~30秒)
+        run: |
+          sleep $((RANDOM % 30))
+          python scripts/fetch_branches.py --chunk-idx ${{ matrix.chunk }} --total-chunks 10
+          
+      - name: Upload Chunk Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: branches-chunk-${{ matrix.chunk }}
+          path: data/branches/chunk_*.parquet
+          retention-days: 1
+
+  merge_and_push:
+    name: Merge and Git Push
+    needs: scrape_matrix
+    runs-on: ubuntu-latest
+    if: always() # 即使部分 chunk 失敗也照樣執行合併
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install pandas pyarrow
+          
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          
+      - name: Move artifacts to data/branches
+        run: |
+          mkdir -p data/branches
+          find artifacts/ -name "*.parquet" -exec cp {} data/branches/ \;
+          ls -la data/branches/
+
+      - name: Merge Data
+        run: |
+          python scripts/merge_branches.py
+          
+      - name: Commit and Push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/branches/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update whole market branches data (Parquet) [skip ci]"
+            git push
+          fi
