@@ -23,9 +23,9 @@
       <span class="logo-text">泡泡圖 <em>2.0</em></span>
     </div>
     <nav class="header-nav">
-      <button id="tab-bubble"   class="nav-btn active" data-view="bubble">泡泡圖</button>
+      <button id="tab-brokers"  class="nav-btn active" data-view="brokers">分點明細</button>
+      <button id="tab-bubble"   class="nav-btn"        data-view="bubble">泡泡圖</button>
       <button id="tab-holders"  class="nav-btn"        data-view="holders">大戶趨勢</button>
-      <button id="tab-brokers"  class="nav-btn"        data-view="brokers">分點明細</button>
     </nav>
     <div class="header-meta">
       <span id="update-label" class="update-badge">載入中…</span>
@@ -89,7 +89,7 @@
   </div>
 
   <!-- 泡泡圖容器 -->
-  <div id="view-bubble" class="view active">
+  <div id="view-bubble" class="view">
     <div id="bubble-chart"></div>
   </div>
 
@@ -102,7 +102,7 @@
   </div>
 
   <!-- 分點明細 -->
-  <div id="view-brokers" class="view">
+  <div id="view-brokers" class="view active">
     <div class="stock-detail-header" style="flex-direction: column; align-items: center; gap: 16px;">
       <div class="broker-direct-search" style="display: flex; gap: 8px; width: 100%; max-width: 400px; margin: 0 auto;">
         <input id="broker-search-input" type="text" placeholder="輸入股票代號 (如: 2330)" autocomplete="off" style="flex: 1; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-100); color: var(--text-100); font-size: 1rem;" />
