@@ -31,3 +31,11 @@
 5. **極致 UI 與效能流暢度 (Apple-Grade Craftsmanship)**：當製作或修改網頁 UI、動畫、視覺或前端架構時 $\rightarrow$ 必須**自動載入並無條件執行 apple-web-craftsmanship 技能**，嚴格執行 5 大架構支柱（Compositor 合成層動畫、rAF VSYNC 同步、G2+ Continuous Curvature Squircle 超橢圓圓角、彈簧物理動畫 Spring Physics、SF Pro 視覺光學字型、微動態響應與 Web Jetsam 記憶體修剪策略）。
 
 6. **高精準度程式碼審查 (OpenCodeReview)**：當進行程式碼審查、Code Review、Diff 檢查或資安/效能掃描時 $\rightarrow$ 必須**自動載入並執行 open-code-review 技能**，進行高精準度、行號層級的 P0/P1/P2 缺陷分類與零誤報審計。
+
+## 網頁爬蟲與防封鎖鐵律 (Strict Web Scraping & Anti-Ban Rule)
+
+當撰寫或修改任何針對外部網站 (尤其是 Yahoo Finance, TWSE 證交所等金融網站) 的爬蟲程式時，**必須強制**遵守以下安全守則以防止 IP 被封鎖 (如 HTTP 999 錯誤)：
+1. **禁止高並發**：預設必須使用單執行緒 (Single-thread) 抓取，絕對禁止在未經同意的情況下使用多執行緒 (`ThreadPoolExecutor` 等) 進行大量並發請求。
+2. **強制延遲 (Sleep)**：在每一個 HTTP 請求之間，必須加上明確的延遲 (例如 `time.sleep(1.5)` 到 `time.sleep(3)` 間的隨機秒數)。
+3. **退避與重試機制**：必須實作狀態碼檢查。如果遇到 HTTP 429 或 999 (Rate Limit / 被阻擋)，程式必須自動休眠更長的時間 (如 5~10 秒) 並重試，而非直接崩潰或略過。
+4. **優先考量穩定性**：在撰寫爬蟲腳本時，寧可讓程式跑 40 分鐘穩定抓完，也不要為了追求 5 分鐘抓完而導致 IP 被封鎖。

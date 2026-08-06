@@ -2,7 +2,9 @@ import json
 import re
 import time
 import os
-import requests
+import gzip
+import pandas as pd
+from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import warnings
@@ -91,8 +93,7 @@ def fetch_yahoo_stock(stock_id):
         return None
 
 def main():
-    today = get_today_str()
-    out_file = config.BROKERS_DIR / f"{today}.json"
+    date_str = get_today_str()
     meta_file = config.META_DIR / "stocks.json"
     
     if not meta_file.exists():
@@ -104,10 +105,7 @@ def main():
         
     stock_ids = list(meta_data.get('stocks', {}).keys())
     
-    results = {
-        "date": today,
-        "stocks": {}
-    }
+    all_stocks_data = {}
     
     print(f"Fetching data for {len(stock_ids)} stocks from Yahoo Finance...")
     
@@ -117,39 +115,96 @@ def main():
         
         for future in as_completed(future_to_id):
             sid = future_to_id[future]
-            data = future.result()
-            if data:
-                results["stocks"][sid] = data
+            stock_data = future.result()
+            if stock_data:
+                all_stocks_data[sid] = stock_data
                 success_count += 1
                 if success_count % 100 == 0:
                     print(f"Progress: {success_count} stocks processed.")
                     
-    print(f"Finished! Successfully fetched {success_count} / {len(stock_ids)} stocks.")
+    print(f"Successfully fetched data for {success_count} stocks.")
     
     if success_count > 0:
-        with open(out_file, 'w', encoding='utf-8') as f:
-            json.dump(results, f, separators=(',', ':'), ensure_ascii=False)
+        # Save the data to JSON GZ
+        out_dir = Path(config.DATA_DIR) / 'brokers'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_file = out_dir / f"{date_str}.json.gz"
+        
+        output_data = {
+            'date': date_str,
+            'stocks': all_stocks_data
+        }
+        
+        with gzip.open(out_file, 'wt', encoding='utf-8') as f:
+            json.dump(output_data, f, ensure_ascii=False, separators=(',', ':'))
             
-        print(f"Saved to {out_file}")
+        print(f"Data saved to {out_file} (compressed)")
         
         # Update index.json
-        index_file = config.DATA_DIR / "index.json"
-        if index_file.exists():
+        index_file = Path(config.DATA_DIR) / 'index.json'
+        try:
             with open(index_file, 'r', encoding='utf-8') as f:
-                idx_data = json.load(f)
-        else:
-            idx_data = {"holders": [], "brokers": []}
+                index_data = json.load(f)
+        except FileNotFoundError:
+            index_data = {}
             
-        if today not in idx_data.get("brokers", []):
-            if "brokers" not in idx_data:
-                idx_data["brokers"] = []
-            idx_data["brokers"].insert(0, today)
-            # Keep latest 30 days
-            idx_data["brokers"] = idx_data["brokers"][:30]
-            with open(index_file, 'w', encoding='utf-8') as f:
-                json.dump(idx_data, f, indent=2)
+        if 'brokers' not in index_data:
+            index_data['brokers'] = []
+        
+        if date_str not in index_data['brokers']:
+            index_data['brokers'].insert(0, date_str)
+            
+        index_data['last_updated'] = datetime.now().isoformat()
+        
+        with open(index_file, 'w', encoding='utf-8') as f:
+            json.dump(index_data, f, ensure_ascii=False, separators=(',', ':'))
+            
+        print(f"Updated {index_file}")
+
+        # --- Append to Parquet History ---
+        print("Updating Parquet history...")
+        history_file = Path(config.DATA_DIR) / 'brokers_history.parquet'
+        records = []
+        for sid, stock_data in all_stocks_data.items():
+            for broker in stock_data.get('top_buy', []):
+                records.append({
+                    'date': date_str,
+                    'stock_id': sid,
+                    'broker_name': broker.get('broker_name', ''),
+                    'buy': broker.get('buy', 0),
+                    'sell': broker.get('sell', 0),
+                    'net': broker.get('net', 0)
+                })
+            for broker in stock_data.get('top_sell', []):
+                records.append({
+                    'date': date_str,
+                    'stock_id': sid,
+                    'broker_name': broker.get('broker_name', ''),
+                    'buy': broker.get('buy', 0),
+                    'sell': broker.get('sell', 0),
+                    'net': broker.get('net', 0)
+                })
                 
-        print("Update complete.")
+        if records:
+            df = pd.DataFrame(records)
+            if history_file.exists():
+                try:
+                    old_df = pd.read_parquet(history_file)
+                    # Remove today's data if it somehow exists to prevent duplicates
+                    old_df = old_df[old_df['date'] != date_str]
+                    df = pd.concat([old_df, df])
+                except Exception as e:
+                    print(f"Failed to read existing parquet: {e}")
+                    
+            # Drop strict duplicates just in case
+            df = df.drop_duplicates(subset=['date', 'stock_id', 'broker_name'])
+            # Sort values
+            df = df.sort_values(['date', 'stock_id', 'net'], ascending=[False, True, False])
+            
+            df.to_parquet(history_file, index=False)
+            print(f"Successfully appended {len(records)} records to {history_file.name}. Total history size: {len(df)}")
+        else:
+            print("No records to append to Parquet.")
     else:
         print("No data fetched. Aborting save.")
 

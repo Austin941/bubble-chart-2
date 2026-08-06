@@ -24,6 +24,7 @@
     </div>
     <nav class="header-nav">
       <button id="tab-brokers"  class="nav-btn active" data-view="brokers">分點明細</button>
+      <button id="tab-history"  class="nav-btn"        data-view="history">分點歷史趨勢</button>
       <button id="tab-bubble"   class="nav-btn"        data-view="bubble">泡泡圖</button>
       <button id="tab-holders"  class="nav-btn"        data-view="holders">大戶趨勢</button>
     </nav>
@@ -101,6 +102,25 @@
     <div id="holders-chart"></div>
   </div>
 
+  <!-- 分點歷史趨勢 -->
+  <div id="view-history" class="view">
+    <div class="stock-detail-header" style="flex-direction: column; align-items: center; gap: 16px;">
+      <div class="history-search" style="display: flex; gap: 8px; width: 100%; max-width: 600px; margin: 0 auto;">
+        <input id="history-stock-input" type="text" placeholder="股票代號 (如: 2330)" autocomplete="off" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-100); color: var(--text-100);" />
+        <input id="history-broker-input" type="text" placeholder="分點名稱 (如: 凱基-台北)" autocomplete="off" style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-100); color: var(--text-100);" />
+        <button id="history-search-btn" style="padding: 10px 20px; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 600; border: none; cursor: pointer;">查詢歷史</button>
+      </div>
+      <h2 id="history-title">請輸入股票代號與分點名稱查詢歷史趨勢</h2>
+    </div>
+    <div id="history-chart-container" style="width: 100%; height: 500px; padding: 20px; position: relative;">
+      <!-- Chart.js canvas -->
+      <canvas id="history-chart-canvas"></canvas>
+      <div id="history-loading" style="display: none; position: absolute; inset: 0; background: rgba(10,13,20,0.8); align-items: center; justify-content: center; color: white;">
+        載入 DuckDB 中...
+      </div>
+    </div>
+  </div>
+
   <!-- 分點明細 -->
   <div id="view-brokers" class="view active">
     <div class="stock-detail-header" style="flex-direction: column; align-items: center; gap: 16px;">
@@ -131,8 +151,10 @@
   <a href="https://github.com" target="_blank" rel="noopener">GitHub ↗</a>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="src/data-loader.js"></script>
 <script src="src/filters.js"></script>
 <script src="src/bubble-chart.js"></script>
+<script type="module" src="src/history-chart.js"></script>
 </body>
 </html>

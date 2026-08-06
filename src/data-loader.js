@@ -28,6 +28,19 @@ const DATA_BASE = IS_LOCAL ? './data' : './data';  // Vercel 部署後直接讀�
 async function fetchJSON(path) {
   const resp = await fetch(path);
   if (!resp.ok) throw new Error(`HTTP ${resp.status} ${path}`);
+  
+  if (path.endsWith('.gz')) {
+    try {
+      const ds = new DecompressionStream('gzip');
+      const decompressedStream = resp.body.pipeThrough(ds);
+      const text = await new Response(decompressedStream).text();
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('Decompression failed for', path, e);
+      throw e;
+    }
+  }
+  
   return resp.json();
 }
 
@@ -63,11 +76,17 @@ async function loadHolders(dateStr) {
 async function loadBrokers(dateStr) {
   if (APP.brokers[dateStr]) return APP.brokers[dateStr];
   try {
-    const data = await fetchJSON(`${DATA_BASE}/brokers/${dateStr}.json`);
-    APP.brokers[dateStr] = data;
-    return data;
+    try {
+      const data = await fetchJSON(`${DATA_BASE}/brokers/${dateStr}.json.gz`);
+      APP.brokers[dateStr] = data;
+      return data;
+    } catch (e) {
+      const data = await fetchJSON(`${DATA_BASE}/brokers/${dateStr}.json`);
+      APP.brokers[dateStr] = data;
+      return data;
+    }
   } catch (e) {
-    console.warn(`brokers/${dateStr}.json 不存在：`, e.message);
+    console.warn(`brokers/${dateStr} 資料不存在：`, e.message);
     return null;
   }
 }
