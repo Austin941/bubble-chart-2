@@ -200,7 +200,10 @@ async function initData() {
 
     // 更新頁首日期標籤
     const label = document.getElementById('update-label');
-    if (label) label.textContent = `最後更新：${formatDate(latestHolders || '—')}`;
+    if (label) {
+      const maxDate = [latestHolders, latestBrokers].filter(Boolean).sort().reverse()[0];
+      label.textContent = `最後更新：${formatDate(maxDate || '—')}`;
+    }
 
     // 觸發圖表初始化
     APP.callbacks.forEach(cb => cb());
