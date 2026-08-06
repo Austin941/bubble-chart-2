@@ -21,6 +21,9 @@ def fetch_yahoo_stock(stock_id):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     try:
+        # Mandatory sleep to prevent Yahoo WAF 999 IP ban
+        time.sleep(1.5)
+        
         for attempt in range(3):
             res = requests.get(url, headers=headers, timeout=10, verify=False)
             if res.status_code == 200:
@@ -109,7 +112,7 @@ def main():
     print(f"Fetching data for {len(stock_ids)} stocks from Yahoo Finance...")
     
     success_count = 0
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=1) as executor:
         future_to_id = {executor.submit(fetch_yahoo_stock, sid): sid for sid in stock_ids}
         
         for future in as_completed(future_to_id):
