@@ -2,8 +2,8 @@ name: Fetch Yahoo Broker Data
 
 on:
   schedule:
-    # 台灣時間 17:00 等於 UTC 09:00
-    - cron: '0 9 * * 1-5'
+    # 提早到台灣時間 16:30 (UTC 08:30) 觸發，防延遲，程式內部會等到 17:00 才抓
+    - cron: '30 8 * * 1-5'
   workflow_dispatch:
 
 permissions:

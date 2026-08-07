@@ -5,7 +5,7 @@ import os
 import gzip
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import warnings
 warnings.simplefilter('ignore')
@@ -92,7 +92,27 @@ def fetch_yahoo_stock(stock_id):
     except Exception as e:
         return None
 
+def wait_until_target_time(target_hour=17, target_minute=0):
+    """
+    等待直到台灣時間的指定時間。
+    """
+    tw_tz = timezone(timedelta(hours=8))
+    now = datetime.now(tw_tz)
+    target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+    
+    if now >= target_time:
+        print(f"Current time {now.strftime('%H:%M:%S')} is past {target_hour:02d}:{target_minute:02d}. Starting immediately.")
+        return
+        
+    wait_seconds = (target_time - now).total_seconds()
+    print(f"Idling for {int(wait_seconds)} seconds until {target_hour:02d}:{target_minute:02d}...")
+    time.sleep(wait_seconds)
+    print("Time reached! Starting scrape...")
+
 def main():
+    # 確保過了下午 5 點才開始抓
+    wait_until_target_time(17, 0)
+    
     date_str = get_today_str()
     meta_file = config.META_DIR / "stocks.json"
     
