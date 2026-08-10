@@ -4,6 +4,7 @@ import time
 import os
 import gzip
 import pandas as pd
+import requests
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
