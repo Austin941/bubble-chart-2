@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>歷史分點交叉比對矩陣</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Apple-Web-Craftsmanship / Impeccable Variables */
+    :root {
+      --bg: #0a0a0c;
+      --surface: rgba(20, 20, 24, 0.6);
+      --surface-hover: rgba(40, 40, 48, 0.8);
+      --border: rgba(255, 255, 255, 0.08);
+      --text-main: #ffffff;
+      --text-muted: #8e8e93;
+      --accent: #0a84ff;
+      --buy-color: #ff453a; /* Red for buy in TW */
+      --buy-bg: rgba(255, 69, 58, 0.1);
+      --sell-color: #30d158; /* Green for sell in TW */
+      --sell-bg: rgba(48, 209, 88, 0.1);
+      
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    /* Glassmorphism Header */
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      animation: slideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin: 0 0 10px 0;
+      background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header p {
+      color: var(--text-muted);
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    /* Search Container */
+    .search-container {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      max-width: 500px;
+      margin-bottom: 40px;
+      animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+    }
+    .search-input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px 24px;
+      font-size: 1.2rem;
+      color: var(--text-main);
+      outline: none;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(10, 132, 255, 0.2);
+    }
+    .search-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 16px;
+      padding: 0 32px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, filter 0.2s;
+    }
+    .search-btn:hover {
+      filter: brightness(1.1);
+      transform: scale(1.02);
+    }
+    .search-btn:active {
+      transform: scale(0.98);
+    }
+
+    /* Split Table Layout */
+    .tables-container {
+      display: flex;
+      gap: 24px;
+      width: 100%;
+      flex-direction: column;
+    }
+    @media (min-width: 1200px) {
+      .tables-container {
+        flex-direction: row;
+        align-items: flex-start;
+      }
+    }
+    
+    .table-wrapper {
+      flex: 1;
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      overflow: hidden;
+      display: none;
+      animation: fadeIn 0.6s ease both;
+    }
+    
+    .table-header {
+      padding: 20px 24px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+    .buy-title { color: var(--buy-color); }
+    .sell-title { color: var(--sell-color); }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+    }
+    th, td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.95rem;
+    }
+    th {
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    th:first-child, td:first-child {
+      text-align: left;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .broker-name {
+      font-weight: 600;
+    }
+    
+    .val-buy { color: var(--buy-color); font-weight: 600; }
+    .val-sell { color: var(--sell-color); font-weight: 600; }
+    .val-zero { color: var(--text-muted); }
+    
+    .cell-buy { background: var(--buy-bg); }
+    .cell-sell { background: var(--sell-bg); }
+
+    /* Loading Status */
+    #status-msg {
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      font-size: 1.1rem;
+    }
+
+    /* Animations */
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    /* Spring Row Animation */
+    tbody tr {
+      opacity: 0;
+      animation: springIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+    @keyframes springIn {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>歷史分點交叉比對</h1>
+    <p>透過 DuckDB 引擎即時分析大數據庫</p>
+  </div>
+
+  <div class="search-container">
+    <input type="text" id="stock-input" class="search-input" placeholder="輸入股票代號 (如 2330, 0000)" autocomplete="off">
+    <button id="search-btn" class="search-btn">查詢</button>
+  </div>
+
+  <div id="status-msg">初始化資料庫中...</div>
+
+  <!-- Institutional Table -->
+  <div class="table-wrapper" id="inst-container" style="display: none; margin-bottom: 24px;">
+    <div class="table-header" style="color: #f5b041;">🌟 三大法人歷史買賣超</div>
+    <table id="inst-table">
+      <thead>
+        <tr id="inst-head-row"></tr>
+      </thead>
+      <tbody id="inst-body"></tbody>
+    </table>
+  </div>
+
+  <div class="tables-container" id="tables-container" style="display: none;">
+    <!-- Buy Table -->
+    <div class="table-wrapper" style="display: block;">
+      <div class="table-header buy-title">🟢 主力買超排行 (淨買超)</div>
+      <table id="buy-table">
+        <thead>
+          <tr id="buy-head-row"></tr>
+        </thead>
+        <tbody id="buy-body"></tbody>
+      </table>
+    </div>
+    
+    <!-- Sell Table -->
+    <div class="table-wrapper" style="display: block;">
+      <div class="table-header sell-title">🔴 主力賣超排行 (淨賣超)</div>
+      <table id="sell-table">
+        <thead>
+          <tr id="sell-head-row"></tr>
+        </thead>
+        <tbody id="sell-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- DuckDB Wasm CDN -->
+  <script type="module">
+    import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
+
+    let conn = null;
+    let availableDates = [];
+
+    const statusMsg = document.getElementById('status-msg');
+    const tablesContainer = document.getElementById('tables-container');
+    const instContainer = document.getElementById('inst-container');
+    const instHeadRow = document.getElementById('inst-head-row');
+    const buyHeadRow = document.getElementById('buy-head-row');
+    const sellHeadRow = document.getElementById('sell-head-row');
+    const instBody = document.getElementById('inst-body');
+    const buyBody = document.getElementById('buy-body');
+    const sellBody = document.getElementById('sell-body');
+    const searchBtn = document.getElementById('search-btn');
+    const stockInput = document.getElementById('stock-input');
+
+    async function initDuckDB() {
+      try {
+        const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
+        const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
+        
+        const worker_url = URL.createObjectURL(
+            new Blob([`importScripts("${bundle.mainWorker}");`], { type: 'text/javascript' })
+        );
+        
+        const worker = new Worker(worker_url);
+        const logger = new duckdb.ConsoleLogger();
+        const db = new duckdb.AsyncDuckDB(logger, worker);
+        await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+        URL.revokeObjectURL(worker_url);
+        
+        conn = await db.connect();
+        
+        // Construct local URL for parquet
+        let basePath = window.location.pathname;
+        if (basePath.endsWith('.html')) basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+        if (!basePath.endsWith('/')) basePath += '/';
+        const parquetUrl = window.location.origin + basePath + 'data/brokers_history.parquet';
+        
+        await db.registerFileURL('history.parquet', parquetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
+        
+        // Fetch available dates
+        const dateResult = await conn.query(`SELECT DISTINCT date FROM 'history.parquet' ORDER BY date DESC LIMIT 3`);
+        availableDates = dateResult.toArray().map(r => r.toJSON().date);
+        
+        statusMsg.textContent = `就緒！資料庫包含 ${availableDates.length} 天歷史資料`;
+      } catch (e) {
+        console.error(e);
+        statusMsg.textContent = '資料庫載入失敗，請確認檔案路徑。';
+      }
+    }
+
+    function formatNumber(num) {
+      if (num === 0) return '-';
+      return new Intl.NumberFormat('en-US').format(num);
+    }
+
+    function getCellClass(val) {
+      if (val > 0) return 'val-buy cell-buy';
+      if (val < 0) return 'val-sell cell-sell';
+      return 'val-zero';
+    }
+    
+    function generateTableRows(rows) {
+      let trHtml = '';
+      rows.forEach((row, idx) => {
+        const delay = Math.min(idx * 0.05, 1.0);
+        trHtml += `<tr style="animation-delay: ${delay}s">
+          <td class="broker-name">${row.broker_name}</td>
+        `;
+        availableDates.forEach((_, i) => {
+          const val = row[`day_${i}`];
+          trHtml += `<td class="${getCellClass(val)}">${formatNumber(val)}</td>`;
+        });
+        trHtml += `<td class="${getCellClass(row.total_net)}" style="font-size: 1.05rem">${formatNumber(row.total_net)}</td>`;
+        trHtml += `</tr>`;
+      });
+      return trHtml;
+    }
+
+    async function queryMatrix(stockId) {
+      if (!conn) return;
+      if (availableDates.length === 0) {
+        statusMsg.textContent = '沒有可用的歷史日期';
+        return;
+      }
+      
+      statusMsg.textContent = `查詢 ${stockId} 中...`;
+      tablesContainer.style.display = 'none';
+      instContainer.style.display = 'none';
+      instBody.innerHTML = '';
+      buyBody.innerHTML = '';
+      sellBody.innerHTML = '';
+      
+      try {
+        // Build dynamic pivot columns
+        let selectCols = `broker_name, `;
+        availableDates.forEach((date, i) => {
+            selectCols += `CAST(SUM(CASE WHEN date = '${date}' THEN net ELSE 0 END) AS INTEGER) AS day_${i}, `;
+        });
+        selectCols += `CAST(SUM(net) AS INTEGER) as total_net`;
+        
+        const query = `
+          SELECT ${selectCols}
+          FROM 'history.parquet'
+          WHERE stock_id = '${stockId}'
+          GROUP BY broker_name
+          HAVING SUM(net) != 0
+        `;
+        
+        const result = await conn.query(query);
+        const rows = result.toArray().map(r => r.toJSON());
+        
+        if (rows.length === 0) {
+          statusMsg.textContent = `找不到代號 ${stockId} 的資料`;
+          return;
+        }
+        
+        // Split Institutional vs Regular Brokers
+        const instRows = rows.filter(r => r.broker_name.startsWith('法人-') || r.broker_name === '外資自營商');
+        const regRows = rows.filter(r => !(r.broker_name.startsWith('法人-') || r.broker_name === '外資自營商'));
+        
+        // Sort Institutions explicitly (Foreign, Trust, Dealer, Foreign Dealer)
+        const instOrder = {'法人-外資': 1, '法人-投信': 2, '法人-自營商': 3, '外資自營商': 4};
+        instRows.sort((a,b) => (instOrder[a.broker_name] || 99) - (instOrder[b.broker_name] || 99));
+        
+        // Split and Sort Regular Brokers
+        const buyRows = regRows.filter(r => Number(r.total_net) > 0)
+                            .sort((a,b) => Number(b.total_net) - Number(a.total_net)).slice(0, 30);
+        const sellRows = regRows.filter(r => Number(r.total_net) < 0)
+                             .sort((a,b) => Number(a.total_net) - Number(b.total_net)).slice(0, 30);
+
+        // Render Headers
+        let thHtml = `<th>分點</th>`;
+        availableDates.forEach(date => {
+          thHtml += `<th>${date.substring(4,6)}/${date.substring(6,8)}</th>`;
+        });
+        thHtml += `<th>期間總計</th>`;
+        instHeadRow.innerHTML = thHtml;
+        buyHeadRow.innerHTML = thHtml;
+        sellHeadRow.innerHTML = thHtml;
+
+        // Render Rows
+        instBody.innerHTML = generateTableRows(instRows);
+        buyBody.innerHTML = generateTableRows(buyRows);
+        sellBody.innerHTML = generateTableRows(sellRows);
+        
+        if (instRows.length > 0) instContainer.style.display = 'block';
+        tablesContainer.style.display = 'flex';
+        statusMsg.textContent = '';
+        
+      } catch (e) {
+        console.error(e);
+        statusMsg.textContent = '查詢發生錯誤: ' + e.message;
+      }
+    }
+
+    searchBtn.addEventListener('click', () => {
+      const val = stockInput.value.trim();
+      if (val) queryMatrix(val);
+    });
+    
+    stockInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const val = stockInput.value.trim();
+        if (val) queryMatrix(val);
+      }
+    });
+
+    // Start DB
+    initDuckDB();
+  </script>
+</body>
+</html>
