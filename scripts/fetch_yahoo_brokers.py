@@ -215,6 +215,66 @@ def fetch_t86_data(date_str):
     except Exception as e:
         print(f'TPEx error: {e}')
         
+    # 3. Margin Data (信用交易: 融資融券)
+    print(f'Fetching Margin data for {date_str}...')
+    try:
+        twse_margin_url = f'https://www.twse.com.tw/exchangeReport/MI_MARGN?response=json&date={date_str}&selectType=ALL'
+        res = requests.get(twse_margin_url, headers=headers, timeout=15)
+        data = res.json()
+        for t in data.get('tables', []):
+            if len(t.get('data', [])) > 100:
+                for row in t['data']:
+                    sid = row[0].strip()
+                    def parse_int(val):
+                        try: return int(val.replace(',', ''))
+                        except: return 0
+                    
+                    # Note: Both TWSE and TPEx return margin data in LOTS (張).
+                    # We must multiply by 1000 to normalize to shares (股).
+                    margin_buy = parse_int(row[2]) * 1000
+                    margin_sell = parse_int(row[3]) * 1000
+                    short_buy = parse_int(row[8]) * 1000
+                    short_sell = parse_int(row[9]) * 1000
+                    
+                    if sid not in t86_stocks:
+                        t86_stocks[sid] = []
+                        
+                    t86_stocks[sid].extend([
+                        {'broker_name': '信用-融資', 'buy': margin_buy, 'sell': margin_sell, 'net': margin_buy - margin_sell},
+                        {'broker_name': '信用-融券', 'buy': short_buy, 'sell': short_sell, 'net': short_buy - short_sell}
+                    ])
+                break
+    except Exception as e:
+        print(f'TWSE Margin error: {e}')
+        
+    try:
+        tpex_margin_url = f'https://www.tpex.org.tw/web/stock/margin_trading/margin_balance/margin_bal_result.php?l=zh-tw&o=json&d={tpex_date}'
+        res = requests.get(tpex_margin_url, headers=headers, timeout=15)
+        data = res.json()
+        for t in data.get('tables', []):
+            if len(t.get('data', [])) > 100:
+                for row in t['data']:
+                    sid = row[0].strip()
+                    def parse_int(val):
+                        try: return int(val.replace(',', ''))
+                        except: return 0
+                    
+                    margin_buy = parse_int(row[3]) * 1000
+                    margin_sell = parse_int(row[4]) * 1000
+                    short_buy = parse_int(row[11]) * 1000
+                    short_sell = parse_int(row[12]) * 1000
+                    
+                    if sid not in t86_stocks:
+                        t86_stocks[sid] = []
+                        
+                    t86_stocks[sid].extend([
+                        {'broker_name': '信用-融資', 'buy': margin_buy, 'sell': margin_sell, 'net': margin_buy - margin_sell},
+                        {'broker_name': '信用-融券', 'buy': short_buy, 'sell': short_sell, 'net': short_buy - short_sell}
+                    ])
+                break
+    except Exception as e:
+        print(f'TPEx Margin error: {e}')
+
     return t86_stocks
 
 def main():

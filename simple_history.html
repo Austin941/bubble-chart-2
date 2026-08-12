@@ -219,6 +219,28 @@
   </div>
 
   <div id="status-msg">初始化資料庫中...</div>
+  
+  <!-- Whale Holdings Panel -->
+  <div id="whale-panel" style="display: none; width: 100%; max-width: 800px; margin-bottom: 24px; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; backdrop-filter: blur(20px); animation: fadeIn 0.6s ease both;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
+          <div style="font-size: 1.2rem; font-weight: 600; color: var(--accent);">🐳 集保大戶籌碼狀態</div>
+          <div id="whale-date" style="font-size: 0.9rem; color: var(--text-muted);">更新日期: -</div>
+      </div>
+      <div style="display: flex; justify-content: space-around; text-align: center;">
+          <div>
+              <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 4px;">大戶持股 (>400張)</div>
+              <div id="whale-pct" style="font-size: 1.5rem; font-weight: 700; color: #ff9f0a;">- %</div>
+          </div>
+          <div>
+              <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 4px;">散戶持股 (<50張)</div>
+              <div id="retail-pct" style="font-size: 1.5rem; font-weight: 700; color: #30d158;">- %</div>
+          </div>
+          <div>
+              <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 4px;">大散戶差額</div>
+              <div id="whale-diff" style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">- %</div>
+          </div>
+      </div>
+  </div>
 
   <!-- Institutional Table -->
   <div class="table-wrapper" id="inst-container" style="display: none; margin-bottom: 24px;">
@@ -261,6 +283,8 @@
 
     let conn = null;
     let availableDates = [];
+    let capitalEvents = {};
+    let holdersData = null;
 
     const statusMsg = document.getElementById('status-msg');
     const tablesContainer = document.getElementById('tables-container');
@@ -273,9 +297,36 @@
     const sellBody = document.getElementById('sell-body');
     const searchBtn = document.getElementById('search-btn');
     const stockInput = document.getElementById('stock-input');
+    
+    // Whale Panel Elements
+    const whalePanel = document.getElementById('whale-panel');
+    const whaleDateElem = document.getElementById('whale-date');
+    const whalePctElem = document.getElementById('whale-pct');
+    const retailPctElem = document.getElementById('retail-pct');
+    const whaleDiffElem = document.getElementById('whale-diff');
 
     async function initDuckDB() {
       try {
+        let basePath = window.location.pathname;
+        if (basePath.endsWith('.html')) basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+        if (!basePath.endsWith('/')) basePath += '/';
+
+        // Fetch capital events first
+        try {
+            const res = await fetch(basePath + 'data/capital_events.json');
+            capitalEvents = await res.json();
+        } catch (e) {
+            console.warn("Failed to load capital_events.json", e);
+        }
+
+        // Fetch whale holders
+        try {
+            const res = await fetch(basePath + 'data/holders/latest_holders.json');
+            holdersData = await res.json();
+        } catch (e) {
+            console.warn("Failed to load latest_holders.json", e);
+        }
+
         const JSDELIVR_BUNDLES = duckdb.getJsDelivrBundles();
         const bundle = await duckdb.selectBundle(JSDELIVR_BUNDLES);
         
@@ -292,9 +343,6 @@
         conn = await db.connect();
         
         // Construct local URL for parquet
-        let basePath = window.location.pathname;
-        if (basePath.endsWith('.html')) basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
-        if (!basePath.endsWith('/')) basePath += '/';
         const parquetUrl = window.location.origin + basePath + 'data/brokers_history.parquet';
         
         await db.registerFileURL('history.parquet', parquetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
@@ -338,6 +386,18 @@
       return trHtml;
     }
 
+    function getMultiplierForDate(stockId, targetDate) {
+        if (!capitalEvents[stockId]) return 1.0;
+        let mult = 1.0;
+        const splits = capitalEvents[stockId];
+        for (const [eventDate, ratio] of Object.entries(splits)) {
+            if (eventDate > targetDate) {
+                mult *= ratio;
+            }
+        }
+        return mult;
+    }
+
     async function queryMatrix(stockId) {
       if (!conn) return;
       if (availableDates.length === 0) {
@@ -356,7 +416,8 @@
         // Build dynamic pivot columns
         let selectCols = `broker_name, `;
         availableDates.forEach((date, i) => {
-            selectCols += `CAST(SUM(CASE WHEN date = '${date}' THEN net ELSE 0 END) AS INTEGER) AS day_${i}, `;
+            const mult = getMultiplierForDate(stockId, date);
+            selectCols += `CAST(SUM(CASE WHEN date = '${date}' THEN net * ${mult} ELSE 0 END) AS INTEGER) AS day_${i}, `;
         });
         selectCols += `CAST(SUM(net) AS INTEGER) as total_net`;
         
@@ -370,6 +431,19 @@
         
         const result = await conn.query(query);
         const rows = result.toArray().map(r => r.toJSON());
+        
+        // Show Whale Holdings if available
+        if (holdersData && holdersData.stocks && holdersData.stocks[stockId]) {
+            const hData = holdersData.stocks[stockId];
+            whaleDateElem.textContent = `更新日期: ${holdersData.date.substring(0,4)}/${holdersData.date.substring(4,6)}/${holdersData.date.substring(6,8)}`;
+            whalePctElem.textContent = `${hData.whale_pct}%`;
+            retailPctElem.textContent = `${hData.retail_pct}%`;
+            whaleDiffElem.textContent = `${hData.big_vs_retail > 0 ? '+' : ''}${hData.big_vs_retail}%`;
+            whaleDiffElem.style.color = hData.big_vs_retail > 0 ? '#ff453a' : '#30d158';
+            whalePanel.style.display = 'block';
+        } else {
+            whalePanel.style.display = 'none';
+        }
         
         if (rows.length === 0) {
           statusMsg.textContent = `找不到代號 ${stockId} 的資料`;

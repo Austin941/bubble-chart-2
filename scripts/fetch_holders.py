@@ -140,6 +140,7 @@ def main():
     }
 
     save_json(out_path, output)
+    save_json(HOLDERS_DIR / "latest_holders.json", output)
     log.info(f"fetch_holders  完成：{len(stocks)} 支股票")
 
 
