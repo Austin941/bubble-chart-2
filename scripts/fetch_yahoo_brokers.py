@@ -195,10 +195,10 @@ def fetch_t86_data(date_str):
                 
                 f_buy = parse_int(row[2]); f_sell = parse_int(row[3])
                 fd_buy = parse_int(row[5]); fd_sell = parse_int(row[6])
-                t_buy = parse_int(row[8]); t_sell = parse_int(row[9])
+                t_buy = parse_int(row[11]); t_sell = parse_int(row[12])
                 
-                ds_buy = parse_int(row[11]); ds_sell = parse_int(row[12])
-                dh_buy = parse_int(row[14]); dh_sell = parse_int(row[15])
+                ds_buy = parse_int(row[14]); ds_sell = parse_int(row[15])
+                dh_buy = parse_int(row[17]); dh_sell = parse_int(row[18])
                 d_buy = ds_buy + dh_buy
                 d_sell = ds_sell + dh_sell
                 
