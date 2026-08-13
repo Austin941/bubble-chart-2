@@ -492,7 +492,6 @@
         
         // Split Institutional vs Regular Brokers
         const instRows = rows.filter(r => r.broker_name.startsWith('法人-') || r.broker_name === '外資自營商');
-        const regRows = rows.filter(r => !(r.broker_name.startsWith('法人-') || r.broker_name === '外資自營商'));
         
         // Sort Institutions explicitly (Foreign, Trust, Dealer, Foreign Dealer)
         const instOrder = {'法人-外資': 1, '法人-投信': 2, '法人-自營商': 3, '外資自營商': 4};
