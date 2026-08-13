@@ -177,7 +177,7 @@ def fetch_t86_data(date_str):
     tpex_date = f'{twn_year}/{date_str[4:6]}/{date_str[6:]}'
     tpex_url = f'https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&se=EW&t=D&d={tpex_date}'
     try:
-        res = requests.get(tpex_url, headers=headers, timeout=15)
+        res = requests.get(tpex_url, headers=headers, timeout=15, verify=False)
         data = res.json()
         
         table_data = []
@@ -249,7 +249,7 @@ def fetch_t86_data(date_str):
         
     try:
         tpex_margin_url = f'https://www.tpex.org.tw/web/stock/margin_trading/margin_balance/margin_bal_result.php?l=zh-tw&o=json&d={tpex_date}'
-        res = requests.get(tpex_margin_url, headers=headers, timeout=15)
+        res = requests.get(tpex_margin_url, headers=headers, timeout=15, verify=False)
         data = res.json()
         for t in data.get('tables', []):
             if len(t.get('data', [])) > 100:
