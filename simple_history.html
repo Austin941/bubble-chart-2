@@ -267,10 +267,21 @@
           <tr id="buy-head-row"></tr>
         </thead>
         <tbody id="buy-body"></tbody>
-      </table>
-    </div>
-    
-    <!-- Sell Table -->
+        </table>
+      </div>
+
+      <!-- Margin Table -->
+      <div id="margin-container" style="background: var(--surface); border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 1px solid var(--border); display: none;">
+        <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 16px; color: #ff9f0a;">🏦 信用資券 (融資/融券)</div>
+        <table class="data-table">
+          <thead>
+            <tr id="margin-head-row"></tr>
+          </thead>
+          <tbody id="margin-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Buy Brokers -->
     <div class="table-wrapper" style="display: block;">
       <div class="table-header sell-title">🔴 主力賣超排行 (淨賣超)</div>
       <table id="sell-table">
@@ -310,10 +321,13 @@
     const statusMsg = document.getElementById('status-msg');
     const tablesContainer = document.getElementById('tables-container');
     const instContainer = document.getElementById('inst-container');
+    const marginContainer = document.getElementById('margin-container');
     const instHeadRow = document.getElementById('inst-head-row');
     const buyHeadRow = document.getElementById('buy-head-row');
     const sellHeadRow = document.getElementById('sell-head-row');
+    const marginHeadRow = document.getElementById('margin-head-row');
     const instBody = document.getElementById('inst-body');
+    const marginBody = document.getElementById('margin-body');
     const buyBody = document.getElementById('buy-body');
     const sellBody = document.getElementById('sell-body');
     const searchBtn = document.getElementById('search-btn');
@@ -429,7 +443,9 @@
       statusMsg.textContent = `查詢 ${stockId} 中...`;
       tablesContainer.style.display = 'none';
       instContainer.style.display = 'none';
+      marginContainer.style.display = 'none';
       instBody.innerHTML = '';
+      marginBody.innerHTML = '';
       buyBody.innerHTML = '';
       sellBody.innerHTML = '';
       
@@ -482,6 +498,10 @@
         const instOrder = {'法人-外資': 1, '法人-投信': 2, '法人-自營商': 3, '外資自營商': 4};
         instRows.sort((a,b) => (instOrder[a.broker_name] || 99) - (instOrder[b.broker_name] || 99));
         
+        // Extract Margin Rows (信用-融資, 信用-融券)
+        const marginRows = rows.filter(r => r.broker_name.startsWith('信用-') && r.broker_name !== '信用-當沖');
+        const regRows = rows.filter(r => !(r.broker_name.startsWith('法人-') || r.broker_name === '外資自營商' || r.broker_name.startsWith('信用-')));
+        
         // Split and Sort Regular Brokers
         const buyRows = regRows.filter(r => Number(r.total_net) > 0)
                             .sort((a,b) => Number(b.total_net) - Number(a.total_net)).slice(0, 30);
@@ -495,15 +515,18 @@
         });
         thHtml += `<th>期間總計</th>`;
         instHeadRow.innerHTML = thHtml;
+        marginHeadRow.innerHTML = thHtml;
         buyHeadRow.innerHTML = thHtml;
         sellHeadRow.innerHTML = thHtml;
 
         // Render Rows
         instBody.innerHTML = generateTableRows(instRows);
+        marginBody.innerHTML = generateTableRows(marginRows);
         buyBody.innerHTML = generateTableRows(buyRows);
         sellBody.innerHTML = generateTableRows(sellRows);
         
         if (instRows.length > 0) instContainer.style.display = 'block';
+        if (marginRows.length > 0) marginContainer.style.display = 'block';
         tablesContainer.style.display = 'flex';
         statusMsg.textContent = `查詢完成 (${rows.length} 筆)`;
         
