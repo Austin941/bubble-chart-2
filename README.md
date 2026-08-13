@@ -1,69 +1,67 @@
-# 泡泡圖 2.0 (Bubble Chart 2.0)
+# Bubble Chart 2.0 (泡泡圖 2.0) - Developer & AI Instruction Manual
 
-這是一個基於全端 Serverless 架構、純靜態且極度高效的台股「大戶籌碼與券商分點」視覺化追蹤平台。
-拋棄了傳統的資料庫伺服器，我們採用 **DuckDB-WASM** 搭配 **Parquet** 以及原生 **JSON** 靜態檔案，實現了極速的千檔股票即時歷史查詢。
+> **[AI 系統指令 / System Prompt for AI Agents]**
+> 若您是未來接手此專案的 AI 開發助理，請務必先詳細閱讀本章節。
+> 本專案的核心精神是 **「100% 靜態化、Serverless、極致效能」**。
+> 
+> **核心架構限制與開發鐵律 (Architecture Constraints & Rules)：**
+> 1. **禁止使用任何動態後端**：沒有 Node.js API，沒有 Python API，沒有傳統資料庫 (MySQL/Postgres/Firebase)。所有的資料抓取與處理，**僅限於** GitHub Actions 每天定時執行的 Python 爬蟲腳本 (`scripts/*.py`)。
+> 2. **前端資料讀取**：前端 (`simple_history.html`) 完全透過 HTTP Range Requests 讀取靜態檔案（特別是 `.parquet` 與 `.json`）。
+> 3. **SQL 查詢處理**：所有的資料過濾、彙整 (GroupBy)、跨日統計，都是由前端的 **DuckDB-WASM** 負責。前端直接以 SQL 語法向 `.parquet` 檔案發出查詢，達到極速響應。
+> 4. **虛擬分點 (Pseudo-Brokers)**：請記住，我們的 `history.parquet` 不只存一般券商分點，我們將「三大法人」與「信用資券」都寫入為虛擬的 Broker 名稱：
+>    - `法人-外資`, `法人-投信`, `法人-自營商`, `外資自營商`
+>    - `信用-融資`, `信用-融券`, `信用-當沖` (當沖的 net 值為 0)
+> 5. **絕對禁止假資料 (Strict Anti-Mock Rule)**：若缺少某欄位或歷史資料，必須去寫/改 Python 爬蟲腳本，從源頭產出靜態檔案。絕對禁止在前端介面寫死假數據來填補版面。
 
-## ✨ 核心特色與架構
+---
 
-1. **零後端伺服器 (Serverless & Static)**
-   - 前端採用純 HTML/JS 搭配 **DuckDB-WASM**，直接在瀏覽器記憶體中高效分析百萬筆券商交易歷史 (`brokers_history.parquet`)。
-   - 大戶籌碼與個股基本資料採用靜態 JSON 快取 (`latest_holders.json`, `index.json`)，速度極快且沒有 API 費用。
-
-2. **「虛擬分點」架構 (Pseudo-Brokers)**
-   除了全台灣上千家真實的券商分點外，系統更獨創將「全市場籌碼」打包成以下虛擬分點，無縫整合進歷史圖表中：
-   - `法人-外資` / `法人-投信` / `法人-自營商`
-   - `信用-融資` / `信用-融券`
-
-3. **雙軌歷史回補與自動化更新**
-   - **日常更新** (`fetch_yahoo.yml`)：全自動透過 GitHub Actions 每天下午與每週五抓取 TWSE/TPEx 官方 API 與 TDCC 集保中心資料，不依賴任何付費第三方 (如 FinMind)。
-   - **歷史回補** (`backfill_yahoo.yml`)：支援透過雲端手動觸發回補 Yahoo Finance 的長天期籌碼與資券歷史，自動繞過封鎖並寫入資料庫。
-
-## 🚀 快速開始
-
-### 1. 本機啟動開發伺服器
-由於牽涉到 WASM 載入與跨域 (CORS) 限制，請勿直接雙擊開啟 HTML。請使用 Python 啟動本機伺服器：
-```bash
-# 開啟終端機並切換到專案資料夾
-python -m http.server 8999
-
-# 接著在瀏覽器打開：
-http://localhost:8999/simple_history.html
-```
-
-### 2. 爬蟲腳本手動測試
-所有爬蟲腳本皆放置於 `scripts/` 目錄，支援單獨執行：
-```bash
-pip install -r scripts/requirements.txt
-
-# 1. 抓取集保大戶籌碼 (TDCC)
-python scripts/fetch_holders.py
-
-# 2. 抓取全市場券商分點、三大法人、信用資券 (Yahoo/TWSE/TPEx)
-python scripts/fetch_yahoo_brokers.py
-
-# 3. 更新股票代碼與股本資訊
-python scripts/fetch_capital_events.py
-```
-
-## 📂 檔案與資料庫結構
+## 📂 專案目錄結構 (Directory Structure)
 
 ```text
-├── simple_history.html        # 主力前端介面 (Apple-style UI & DuckDB)
-├── data/
-│   ├── brokers_history.parquet # 核心資料庫 (儲存所有券商、法人、資券的歷史買賣)
-│   ├── index.json              # 股票代碼清單快取
-│   ├── capital_events.json     # 個股名稱與股本資訊
-│   └── holders/
-│       ├── latest_holders.json # 最新一週大戶與散戶持股比例 (即時面板使用)
-│       └── YYYYMMDD.json       # 歷史每週的大戶籌碼快照
-├── scripts/                    # 各式 Python 爬蟲與打包腳本
-└── .github/workflows/          # 自動化排程 (CI/CD)
+📁 bubble-chart-2/
+├── 📄 simple_history.html       # 核心前端介面 (UI, Chart.js, DuckDB-WASM 邏輯)
+├── 📁 data/                     # 全靜態資料庫 (GitHub Pages 託管)
+│   ├── 📄 brokers_history.parquet # 歷史買賣超、法人、資券的核心時間序列資料庫 (DuckDB 查詢目標)
+│   ├── 📄 capital_events.json     # 個股除權息與還原係數表
+│   ├── 📄 index.json              # 台股總清單快取
+│   └── 📁 holders/                # 大戶與散戶持股比例 (JSON)
+│       ├── 📄 latest_holders.json # 最新一週大戶籌碼快照
+│       └── 📁 history/            # 每檔股票的歷史大戶持股時間序列 (例如: 2330.json)
+├── 📁 scripts/                  # 後端資料抓取腳本 (由 GitHub Actions 執行)
+│   ├── 📄 fetch_yahoo_brokers.py  # 每日抓取 Yahoo 盤後籌碼/法人/資券/當沖 (核心爬蟲)
+│   ├── 📄 backfill_yahoo_history.py # 一次性補齊過去一年歷史資料的腳本
+│   └── 📄 fetch_holders.py        # 集保中心大戶籌碼爬蟲
+└── 📁 .github/workflows/        # 自動化排程設定 (CI/CD)
+    ├── 📄 fetch_yahoo.yml         # 每日台灣時間 20:00 執行抓取與 Git Commit
+    └── 📄 backfill_yahoo.yml      # 手動觸發的回補腳本
 ```
 
-## 🤖 自動化排程 (GitHub Actions)
+## 🛠️ 本地開發與測試 (Local Development)
 
-- **`fetch_yahoo.yml` (日常維護)**：週一至週五台灣時間 20:00 (UTC 12:00) 自動執行，更新最新一天的券商/法人/資券紀錄，並於每週五連帶更新集保大戶籌碼。
-- **`backfill_yahoo.yml` (歷史回補)**：手動觸發 (workflow_dispatch)，用於一次性回補過去幾個月的 Yahoo 大戶與資券資料。內建每 100 檔自動 Commit 的防中斷機制。
+由於前端使用 DuckDB-WASM，會受到瀏覽器跨域 (CORS) 與本地檔案協定的安全限制（不能直接點擊兩下開啟 `.html` 檔案），開發時**必須**啟動本地伺服器。
 
-## ⚠️ 免責聲明
-本專案為研究與開源交流用途，不提供任何投資建議。抓取之資料皆來自公開網路資訊與證交所/集保中心開放資料。
+1. **啟動測試伺服器**：
+   在專案根目錄開啟終端機，執行：
+   ```bash
+   python -m http.server 8999
+   ```
+2. **開啟網頁**：
+   在瀏覽器中前往 `http://localhost:8999/simple_history.html` 即可開始測試。
+
+## 📊 前端圖表與渲染邏輯 (Frontend Rendering Logic)
+
+目前的介面使用 `Chart.js` 進行動態繪圖。如果在未來的開發中需要新增圖表：
+1. **獲取資料**：
+   - 針對 `.parquet` 檔案：撰寫 SQL 透過 `conn.query(query)` 抓取。
+   - 針對 `.json` 檔案：使用一般的 `fetch()` 抓取。
+2. **圖表生命週期管理**：
+   在前端宣告了 `chartInstances` 物件來追蹤 `Chart` 實例。在使用者重新搜尋股票時，**必須先呼叫 `.destroy()`** 銷毀舊圖表，再重新繪製，以防止記憶體洩漏與畫面重疊。
+
+## 🤖 爬蟲開發指南 (Scraping Guidelines)
+
+- **防封鎖機制**：所有對外請求 (尤其是 Yahoo, TWSE 等) **必須**包含 `headers={'User-Agent': ...}`，並在迴圈中加入 `time.sleep(random.uniform(1.5, 3.0))` 隨機延遲。
+- **寫入 Parquet**：所有對 `brokers_history.parquet` 的操作，必須先以 `pandas` 讀出舊檔案，與新抓取的 DataFrame 進行 `pd.concat` 並 `drop_duplicates`，最後再利用 `pyarrow.parquet` 寫回，以確保資料不遺失且不重複。
+
+---
+
+*這是一份會與專案共同成長的活文件，開發者與 AI 助理應在每次架構有重大變更時，同步更新本說明書。*
