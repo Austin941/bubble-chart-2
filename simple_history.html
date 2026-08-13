@@ -240,6 +240,11 @@
               <div id="whale-diff" style="font-size: 1.5rem; font-weight: 700; color: var(--text-main);">- %</div>
           </div>
       </div>
+      
+      <!-- Whale History Chart Canvas -->
+      <div style="margin-top: 24px; position: relative; height: 250px; width: 100%;">
+          <canvas id="whale-chart"></canvas>
+      </div>
   </div>
 
   <!-- Institutional Table -->
@@ -277,14 +282,30 @@
     </div>
   </div>
 
-  <!-- DuckDB Wasm CDN -->
+  <!-- Daytrade History Panel -->
+  <div id="daytrade-panel" style="display: none; width: 100%; max-width: 1200px; margin-top: 24px; margin-bottom: 40px; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; backdrop-filter: blur(20px); animation: slideUp 0.6s ease both;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px;">
+          <div style="font-size: 1.2rem; font-weight: 600; color: #0a84ff;">⚡ 歷史當沖張數</div>
+      </div>
+      <div style="position: relative; height: 250px; width: 100%;">
+          <canvas id="daytrade-chart"></canvas>
+      </div>
+  </div>
+
+  <!-- DuckDB Wasm and Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script type="module">
     import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.28.0/+esm';
 
     let conn = null;
     let availableDates = [];
-    let capitalEvents = {};
     let holdersData = null;
+    let capitalEvents = {};
+
+    let chartInstances = {
+        whale: null,
+        daytrade: null
+    };
 
     const statusMsg = document.getElementById('status-msg');
     const tablesContainer = document.getElementById('tables-container');
@@ -441,6 +462,9 @@
             whaleDiffElem.textContent = `${hData.big_vs_retail > 0 ? '+' : ''}${hData.big_vs_retail}%`;
             whaleDiffElem.style.color = hData.big_vs_retail > 0 ? '#ff453a' : '#30d158';
             whalePanel.style.display = 'block';
+            
+            // Draw Whale Chart
+            await renderWhaleChart(stockId);
         } else {
             whalePanel.style.display = 'none';
         }
@@ -481,12 +505,164 @@
         
         if (instRows.length > 0) instContainer.style.display = 'block';
         tablesContainer.style.display = 'flex';
-        statusMsg.textContent = '';
+        statusMsg.textContent = `查詢完成 (${rows.length} 筆)`;
+        
+        // Render Daytrade Chart
+        await renderDaytradeChart(stockId);
         
       } catch (e) {
         console.error(e);
-        statusMsg.textContent = '查詢發生錯誤: ' + e.message;
+        statusMsg.textContent = '查詢失敗: ' + e.message;
       }
+    }
+
+    async function renderWhaleChart(stockId) {
+        try {
+            const res = await fetch(`./data/holders/history/${stockId}.json`);
+            if (!res.ok) return;
+            const history = await res.json();
+            
+            history.sort((a,b) => a.date.localeCompare(b.date));
+            
+            const labels = history.map(h => h.date.substring(4,6) + '/' + h.date.substring(6,8));
+            const whaleData = history.map(h => h.whale_pct);
+            const retailData = history.map(h => h.retail_pct);
+            
+            if (chartInstances.whale) chartInstances.whale.destroy();
+            
+            const ctx = document.getElementById('whale-chart').getContext('2d');
+            Chart.defaults.color = '#86868b';
+            chartInstances.whale = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '大戶持股 (%)',
+                            data: whaleData,
+                            borderColor: '#ff9f0a',
+                            backgroundColor: 'rgba(255, 159, 10, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: '散戶持股 (%)',
+                            data: retailData,
+                            borderColor: '#30d158',
+                            backgroundColor: 'rgba(48, 209, 88, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleFont: { size: 13 },
+                            bodyFont: { size: 13 },
+                            padding: 10,
+                            cornerRadius: 8,
+                            displayColors: true
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        } catch(e) {
+            console.error("Whale chart error:", e);
+        }
+    }
+
+    async function renderDaytradeChart(stockId) {
+        try {
+            const dtQuery = `
+              SELECT date, CAST(buy AS INTEGER) as buy
+              FROM 'history.parquet' 
+              WHERE stock_id = '${stockId}' AND broker_name = '信用-當沖' 
+              ORDER BY date ASC
+            `;
+            const dtResult = await conn.query(dtQuery);
+            const dtRows = dtResult.toArray().map(r => r.toJSON());
+            
+            const panel = document.getElementById('daytrade-panel');
+            if (dtRows.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            panel.style.display = 'block';
+            
+            const labels = dtRows.map(r => r.date.substring(4,6) + '/' + r.date.substring(6,8));
+            const data = dtRows.map(r => r.buy / 1000);
+            
+            if (chartInstances.daytrade) chartInstances.daytrade.destroy();
+            
+            const ctx = document.getElementById('daytrade-chart').getContext('2d');
+            chartInstances.daytrade = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '當沖張數',
+                        data: data,
+                        backgroundColor: '#0a84ff',
+                        borderRadius: 4,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            padding: 10,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y.toLocaleString() + ' 張';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255,255,255,0.05)' },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+            
+        } catch(e) {
+            console.error("Daytrade chart error:", e);
+        }
     }
 
     searchBtn.addEventListener('click', () => {
