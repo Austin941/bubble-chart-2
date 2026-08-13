@@ -547,8 +547,8 @@
             history.sort((a,b) => a.date.localeCompare(b.date));
             
             const labels = history.map(h => h.date.substring(4,6) + '/' + h.date.substring(6,8));
-            const whaleData = history.map(h => h.whale_pct);
-            const retailData = history.map(h => h.retail_pct);
+            const whaleData = history.map(h => h.whale_pct !== undefined ? h.whale_pct : h.whale);
+            const retailData = history.map(h => h.retail_pct !== undefined ? h.retail_pct : h.retail);
             
             if (chartInstances.whale) chartInstances.whale.destroy();
             
