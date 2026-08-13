@@ -15,6 +15,11 @@
 
 ---
 
+## 📖 給第三方開發者的 API 串接說明書
+如果您是想要串接本資料庫的外部開發者，請務必閱讀 👉 **[API 串接說明書 (API Documentation)](./API_DOCUMENTATION.md)**，內含 API 端點、CORS 說明、Python / JS 讀取範例，以及極為重要的「虛擬券商標籤」與「當沖讀取」規則防呆指南！
+
+---
+
 ## 📂 專案目錄結構 (Directory Structure)
 
 ```text
