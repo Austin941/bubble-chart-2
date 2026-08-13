@@ -11,91 +11,57 @@ All API requests should be made using HTTP GET to the base raw GitHub URL:
 
 ---
 
-## Endpoint 1: Daily Broker Snapshot (JSON.GZ)
-**Path:** `data/brokers/{YYYYMMDD}.json.gz`
-**Description:** Contains a snapshot of the top 15 buy/sell broker branches for ~2000 Taiwan stocks on a specific trading day.
-**Important Rule:** The file is GZIP compressed. You MUST decompress it before parsing the JSON. Do not attempt to parse the raw byte string as JSON.
-
-**Data Schema (JSON):**
-```json
-{
-  "date": "20260807",
-  "stocks": {
-    "2330": {
-      "summary": { "total_buy": 150000, "total_sell": 120000, "net": 30000 },
-      "top_buy": [
-        { "broker_name": "元大-台北", "buy": 10000, "sell": 2000, "net": 8000 }
-      ],
-      "top_sell": [
-        { "broker_name": "凱基-台北", "buy": 1000, "sell": 9000, "net": -8000 }
-      ]
-    }
-  }
-}
-```
-
-**Python Implementation Example:**
-```python
-import requests
-import gzip
-import json
-
-def get_daily_snapshot(date_str):
-    url = f"https://raw.githubusercontent.com/Austin941/bubble-chart-2/master/data/brokers/{date_str}.json.gz"
-    res = requests.get(url)
-    if res.status_code == 200:
-        decompressed_data = gzip.decompress(res.content)
-        return json.loads(decompressed_data)
-    return None
-```
-
----
-
-## Endpoint 2: Historical Trend Database (Parquet)
+## Endpoint 1: Historical Trend Database (Parquet)
 **Path:** `data/brokers_history.parquet`
-**Description:** A cumulative historical database containing flat records of daily top broker transactions. Use this for time-series analysis or backtesting over multiple days.
-**Important Rule:** This is an Apache Parquet binary file. Use `pandas.read_parquet()` to load it directly from the URL.
+**Description:** A cumulative historical database containing flat records of daily top broker transactions, institutional trades, margin trades, and day trades.
+**Important Rule:** This is an Apache Parquet binary file. Use `pandas.read_parquet()` or DuckDB-WASM to load it directly from the URL.
 
 **Data Schema (Pandas DataFrame):**
 - `date` (string): Trading date "YYYYMMDD"
 - `stock_id` (string): Stock ticker
-- `broker_name` (string): Branch name
-- `buy` (int64): Buy volume
-- `sell` (int64): Sell volume
-- `net` (int64): Net volume
+- `broker_name` (string): Branch name / Category name (See Special Broker Names below)
+- `buy` (int64): Buy volume (in Shares/股)
+- `sell` (int64): Sell volume (in Shares/股)
+- `net` (int64): Net volume (in Shares/股)
 
-**Python Implementation Example:**
-```python
-import pandas as pd
-
-def get_broker_history():
-    url = "https://raw.githubusercontent.com/Austin941/bubble-chart-2/master/data/brokers_history.parquet"
-    # Pandas natively handles HTTP GET for Parquet
-    df = pd.read_parquet(url)
-    return df
-
-# Example Query: Get TSMC (2330) history by a specific broker
-def get_stock_broker_history(stock_id, broker_name):
-    df = get_broker_history()
-    return df[(df['stock_id'] == str(stock_id)) & (df['broker_name'] == broker_name)]
-```
+**Special Broker Names (`broker_name` values):**
+The dataset multiplexes different types of data into the `broker_name` column:
+1. **Regular Brokers:** Standard broker branch names (e.g., "凱基-台北").
+2. **Institutional (三大法人):** Prefixed with `法人-` (i.e., `法人-外資`, `法人-投信`, `法人-自營商`).
+3. **Margin (信用資券):** Prefixed with `信用-` (i.e., `信用-融資`, `信用-融券`).
+4. **Daytrade (當沖):** `信用-當沖`. **CRITICAL:** Daytrade records represent daily trading volume, so `buy` and `sell` contain the total volume, but `net` is ALWAYS `0`. When querying daytrade volume, you MUST SELECT the `buy` column, NOT the `net` column!
 
 ---
 
-## Endpoint 3: Available Dates Index
-**Path:** `data/index.json`
-**Description:** Fetches a list of dates that have available data. Always fetch this first to know which `YYYYMMDD` strings are valid for Endpoint 1.
+## Endpoint 2: Whale & Retail Holders History (JSON)
+**Path:** `data/holders/history/{stock_id}.json`
+**Description:** Historical weekly data on large shareholders (Whales) vs retail investors (Retail).
 
-**Data Schema (JSON):**
+**Data Schema (JSON Array):**
 ```json
-{
-  "brokers": ["20260807", "20260806", "20260805"],
-  "holders": ["20260731", "20260724"],
-  "last_updated": "2026-08-07T18:00:00"
-}
+[
+  {
+    "date": "20260807",
+    "stock_id": "2330",
+    "whale_pct": 84.67,
+    "retail_pct": 15.33,
+    "big_vs_retail": 69.34
+  }
+]
 ```
+**CRITICAL NOTE:** Due to recent Yahoo Finance DOM changes, some historical records may have `retail: 0.0`. If you encounter `retail_pct == 0`, you must calculate it dynamically as `100.0 - whale_pct`.
+
+---
+
+## Endpoint 3: Daily Broker Snapshot (JSON.GZ)
+**Path:** `data/brokers/{YYYYMMDD}.json.gz`
+**Description:** Contains a snapshot of the top 15 buy/sell broker branches for ~2000 Taiwan stocks on a specific trading day.
+**Important Rule:** The file is GZIP compressed. You MUST decompress it before parsing the JSON.
+
+---
 
 ## Constraints & Behaviors for AI
 1. **No Backend Compute:** There is no server running Python/SQL. Do not write code that attempts to POST data or execute server-side queries.
 2. **Data Freshness:** Data updates once per day (approx 18:30 UTC+8). 
-3. **Memory Limits:** The Parquet file will grow large over time. When analyzing large date ranges, always load the parquet directly into a DataFrame and filter immediately using pandas vectorization.
+3. **Memory Limits:** The Parquet file will grow large over time. When analyzing large date ranges, always load the parquet directly into a DataFrame and filter immediately using pandas vectorization, or use DuckDB-WASM with HTTP Range Requests for frontend UI.
+4. **Scraping Quirks:** If you ever write python scraper scripts, note that the TPEx (OTC) API `www.tpex.org.tw` often returns SSL certificate verification errors. You must use `verify=False` in `requests.get()` when querying TPEx endpoints.
