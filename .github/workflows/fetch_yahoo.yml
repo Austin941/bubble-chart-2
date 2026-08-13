@@ -41,6 +41,10 @@ jobs:
         run: |
           python scripts/fetch_holders.py
           
+      - name: Build Per-Stock Holders History JSONs
+        run: |
+          python scripts/build_holders_history.py
+          
       - name: Commit and Push changes
         run: |
           git config user.name "github-actions[bot]"
