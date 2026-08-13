@@ -44,7 +44,7 @@ def scrape_yahoo_margin(sid):
         results = []
         for r in rows:
             cols = [div.text.strip() for div in r.find_all('div') if div.text.strip()]
-            if len(cols) >= 10:
+            if len(cols) >= 10 and cols[0].startswith('202'):
                 date_str = cols[0].replace('/', '') # '2026/08/12' -> '20260812'
                 def parse_int(val):
                     try: return int(val.replace(',', ''))
