@@ -454,16 +454,16 @@
         let selectCols = `broker_name, `;
         availableDates.forEach((date, i) => {
             const mult = getMultiplierForDate(stockId, date);
-            selectCols += `CAST(SUM(CASE WHEN date = '${date}' THEN net * ${mult} ELSE 0 END) AS INTEGER) AS day_${i}, `;
+            selectCols += `CAST(SUM(CASE WHEN date = '${date}' THEN (CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) * ${mult} ELSE 0 END) AS INTEGER) AS day_${i}, `;
         });
-        selectCols += `CAST(SUM(net) AS INTEGER) as total_net`;
+        selectCols += `CAST(SUM(CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) AS INTEGER) as total_net`;
         
         const query = `
           SELECT ${selectCols}
           FROM 'history.parquet'
           WHERE stock_id = '${stockId}'
           GROUP BY broker_name
-          HAVING SUM(net) != 0
+          HAVING SUM(CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) != 0
         `;
         
         const result = await conn.query(query);
@@ -498,7 +498,7 @@
         instRows.sort((a,b) => (instOrder[a.broker_name] || 99) - (instOrder[b.broker_name] || 99));
         
         // Extract Margin Rows (信用-融資, 信用-融券)
-        const marginRows = rows.filter(r => r.broker_name.startsWith('信用-') && r.broker_name !== '信用-當沖');
+        const marginRows = rows.filter(r => r.broker_name.startsWith('信用-'));
         const regRows = rows.filter(r => !(r.broker_name.startsWith('法人-') || r.broker_name === '外資自營商' || r.broker_name.startsWith('信用-')));
         
         // Split and Sort Regular Brokers
