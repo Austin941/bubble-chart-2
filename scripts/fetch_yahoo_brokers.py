@@ -275,6 +275,50 @@ def fetch_t86_data(date_str):
     except Exception as e:
         print(f'TPEx Margin error: {e}')
 
+    # 4. Daytrade Data (當沖)
+    print(f'Fetching Daytrade data for {date_str}...')
+    try:
+        twse_daytrade_url = f'https://www.twse.com.tw/exchangeReport/TWTB4U?response=json&date={date_str}'
+        res = requests.get(twse_daytrade_url, headers=headers, timeout=15)
+        data = res.json()
+        for t in data.get('tables', []):
+            if len(t.get('data', [])) > 100:
+                for row in t['data']:
+                    sid = row[0].strip()
+                    def parse_int(val):
+                        try: return int(val.replace(',', ''))
+                        except: return 0
+                    
+                    daytrade_vol = parse_int(row[3])
+                    if daytrade_vol > 0:
+                        if sid not in t86_stocks:
+                            t86_stocks[sid] = []
+                        t86_stocks[sid].append({'broker_name': '信用-當沖', 'buy': daytrade_vol, 'sell': daytrade_vol, 'net': 0})
+                break
+    except Exception as e:
+        print(f'TWSE Daytrade error: {e}')
+        
+    try:
+        tpex_daytrade_url = f'https://www.tpex.org.tw/web/stock/trading/intraday_stat/intraday_trading_stat_result.php?l=zh-tw&d={tpex_date}'
+        res = requests.get(tpex_daytrade_url, headers=headers, timeout=15)
+        data = res.json()
+        for t in data.get('tables', []):
+            if len(t.get('data', [])) > 100:
+                for row in t['data']:
+                    sid = row[0].strip()
+                    def parse_int(val):
+                        try: return int(val.replace(',', ''))
+                        except: return 0
+                    
+                    daytrade_vol = parse_int(row[3])
+                    if daytrade_vol > 0:
+                        if sid not in t86_stocks:
+                            t86_stocks[sid] = []
+                        t86_stocks[sid].append({'broker_name': '信用-當沖', 'buy': daytrade_vol, 'sell': daytrade_vol, 'net': 0})
+                break
+    except Exception as e:
+        print(f'TPEx Daytrade error: {e}')
+
     return t86_stocks
 
 def main():
@@ -324,9 +368,9 @@ def main():
         if sid in all_stocks_data:
             stock_data = all_stocks_data[sid]
             
-            # 將法人資料塞入 top_buy / top_sell
+            # 將法人/資券/當沖加入 top_buy / top_sell
             for pseudo_broker in brokers:
-                if pseudo_broker['net'] > 0:
+                if pseudo_broker['net'] > 0 or pseudo_broker['broker_name'] == '信用-當沖':
                     stock_data['top_buy'].append(pseudo_broker)
                 elif pseudo_broker['net'] < 0:
                     stock_data['top_sell'].append(pseudo_broker)
