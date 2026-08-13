@@ -98,8 +98,10 @@ def scrape_yahoo_holders(sid):
                     try: return float(val.replace('%', ''))
                     except: return 0.0
                 
-                retail_pct = parse_pct(cols[1])
-                whale_pct = parse_pct(cols[2])
+                # New Yahoo DOM: cols[3]=外資, cols[4]=大戶, cols[5]=董監
+                whale_pct = parse_pct(cols[4]) if len(cols) > 4 else 0.0
+                retail_pct = round(100.0 - whale_pct, 2)
+                
                 if retail_pct > 0 or whale_pct > 0:
                     results.append({
                         'date': date_str,
