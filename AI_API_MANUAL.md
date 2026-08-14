@@ -122,6 +122,28 @@ All endpoints are public, free, and have **CORS enabled (`Access-Control-Allow-O
 
 ---
 
+### Endpoint 2.4: Real Daily K-Line OHLCV (真實個股日 K 線開高低收成交量)
+**Path:** `GET /api/v1/stock/{symbol}/kline`  
+**Description:** Returns 100% real OHLCV historical candlestick data for any TWSE / TPEx stock.  
+**Query Parameters:**
+- `range` (optional, default: `3mo`): `1mo` | `3mo` | `6mo` | `1y` | `2y`.
+- `interval` (optional, default: `1d`): `1d` | `1wk`.
+**Example Output:**
+```json
+{
+  "symbol": "2308",
+  "range": "3mo",
+  "interval": "1d",
+  "klines": [
+    { "date": "2026-08-12", "open": 1810.0, "high": 1830.0, "low": 1785.0, "close": 1790.0, "volume": 8531 },
+    { "date": "2026-08-13", "open": 1845.0, "high": 1915.0, "low": 1845.0, "close": 1885.0, "volume": 13176 },
+    { "date": "2026-08-14", "open": 1945.0, "high": 1975.0, "low": 1865.0, "close": 1885.0, "volume": 13703 }
+  ]
+}
+```
+
+---
+
 ## 🗄️ 3. Full Historical Database (Parquet / DuckDB)
 **Path:** `GET /data/brokers_history.parquet`  
 **Description:** Full raw parquet database containing over 360,000+ daily trade records across all Taiwan equities.  
