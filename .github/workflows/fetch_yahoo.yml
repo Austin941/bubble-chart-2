@@ -49,14 +49,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/brokers/
-          git add data/holders/
-          git add data/index.json
-          git add data/brokers_history.parquet
-          git add data/capital_events.json
+          git add data/
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "Auto-update Yahoo broker data [skip ci]"
-            git push
+            git pull --rebase origin master
+            git push origin master
           fi
