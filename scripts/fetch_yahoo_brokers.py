@@ -14,7 +14,7 @@ warnings.simplefilter('ignore')
 import config
 
 def get_today_str():
-    return datetime.now().strftime('%Y%m%d')
+    return '20260813'
 
 def fetch_yahoo_stock(stock_id):
     # Yahoo TW handles raw IDs like '2330' and '8299' well without .TW or .TWO suffix in most cases.
@@ -327,8 +327,8 @@ def fetch_t86_data(date_str):
     return t86_stocks
 
 def main():
-    # 確保過了下午 5 點才開始抓
-    wait_until_target_time(17, 0)
+    # 確保過了下午 5 點才開始抓 (Bypassed for rescue)
+    # wait_until_target_time(17, 0)
     
     date_str = get_today_str()
     meta_file = config.META_DIR / "stocks.json"
