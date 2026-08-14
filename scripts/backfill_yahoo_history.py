@@ -91,24 +91,27 @@ def scrape_yahoo_holders(sid):
         results = []
         for r in rows:
             cols = [div.text.strip() for div in r.find_all('div') if div.text.strip()]
-            # Columns: [0:Date, 1:散戶持股%, 2:大戶持股%, 3:董監持股%, 4:總股東人數]
+            # Yahoo DOM: [0:Date, 1:Date, 2:外資籌碼, 3:大戶籌碼, 4:董監持股, 5:股價]
             if len(cols) >= 5 and cols[0].startswith('202'):
                 date_str = cols[0].replace('/', '')
                 def parse_pct(val):
                     try: return float(val.replace('%', ''))
                     except: return 0.0
                 
-                # New Yahoo DOM: cols[3]=外資, cols[4]=大戶, cols[5]=董監
-                whale_pct = parse_pct(cols[4]) if len(cols) > 4 else 0.0
-                retail_pct = round(100.0 - whale_pct, 2)
+                foreign_pct = parse_pct(cols[2]) if len(cols) > 2 and cols[2] != '-' else 0.0
+                whale_pct = parse_pct(cols[3]) if len(cols) > 3 and cols[3] != '-' else 0.0
+                directors_pct = parse_pct(cols[4]) if len(cols) > 4 and cols[4] != '-' else 0.0
+                retail_pct = round(100.0 - whale_pct, 2) if whale_pct > 0 else 0.0
                 
-                if retail_pct > 0 or whale_pct > 0:
+                if whale_pct > 0 or foreign_pct > 0:
                     results.append({
                         'date': date_str,
                         'stock_id': sid,
                         'whale_pct': whale_pct,
+                        'foreign_pct': foreign_pct,
+                        'directors_pct': directors_pct,
                         'retail_pct': retail_pct,
-                        'big_vs_retail': round(whale_pct - retail_pct, 4)
+                        'big_vs_retail': round(whale_pct - retail_pct, 4) if whale_pct > 0 else 0.0
                     })
         return results
     except Exception as e:
