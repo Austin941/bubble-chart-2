@@ -101,6 +101,11 @@ def wait_until_target_time(target_hour=17, target_minute=0):
     now = datetime.now(tw_tz)
     target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
     
+    # If manually triggered (not scheduled), skip the wait
+    if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch':
+        print("Manual workflow_dispatch detected. Skipping time wait.")
+        return
+        
     if now >= target_time:
         print(f"Current time {now.strftime('%H:%M:%S')} is past {target_hour:02d}:{target_minute:02d}. Starting immediately.")
         return
