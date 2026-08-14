@@ -90,7 +90,19 @@ def build_all_stock_packages():
             })
         margin_records.sort(key=lambda x: x['date'])
 
-        # --- C. Holders History (集保大戶) ---
+        # --- C. Daytrade History (當沖) ---
+        daytrade_records = []
+        daytrade_df = stock_df[stock_df['broker_name'] == '信用-當沖']
+        for d, d_group in daytrade_df.groupby('date'):
+            d_fmt = f"{d[:4]}-{d[4:6]}-{d[6:]}"
+            vol = int(d_group['buy'].sum() // 1000)
+            daytrade_records.append({
+                "date": d_fmt,
+                "volume": vol
+            })
+        daytrade_records.sort(key=lambda x: x['date'])
+
+        # --- D. Holders History (集保大戶) ---
         holders_records = []
         holder_file = Path(config.DATA_DIR) / 'holders' / 'history' / f"{sid}.json"
         if holder_file.exists():
@@ -111,7 +123,7 @@ def build_all_stock_packages():
             except Exception:
                 pass
 
-        # --- D. Top Brokers (券商分點: 近20日, 近60日) ---
+        # --- E. Top Brokers (券商分點: 近20日, 近60日) ---
         # Exclude institutions and margin rows
         reg_df = stock_df[~stock_df['broker_name'].str.startswith(('法人-', '信用-'))]
 
@@ -159,13 +171,14 @@ def build_all_stock_packages():
             "days60": compute_top_brokers(df_60)
         }
 
-        # --- E. Combine Package ---
+        # --- F. Combine Package ---
         package = {
             "symbol": sid,
             "name": stock_name,
             "updatedAt": today_str,
             "chipHistory": chip_records,
             "marginHistory": margin_records,
+            "daytradeHistory": daytrade_records,
             "holdersHistory": holders_records,
             "topBrokers": top_brokers
         }
