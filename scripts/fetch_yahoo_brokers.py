@@ -493,6 +493,100 @@ def main():
             
             df.to_parquet(history_file, index=False)
             print(f"Successfully appended {len(records)} records to {history_file.name}. Total history size: {len(df)}")
+            
+            # === 新增：輸出個股歷史 JSON (data/brokers/history/{sid}.json) ===
+            print("Generating per-stock history JSON...")
+            history_dir = Path(config.DATA_DIR) / 'brokers' / 'history'
+            history_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 讀取完整 Parquet（含今日剛追加的資料）
+            full_df = pd.read_parquet(history_file)
+            
+            for sid, group in full_df.groupby('stock_id'):
+                sid_records = []
+                for date_val, date_group in group.groupby('date', sort=False):
+                    brokers_list = []
+                    for _, row in date_group.iterrows():
+                        brokers_list.append({
+                            "name": row['broker_name'],
+                            "buy": int(row['buy']),
+                            "sell": int(row['sell']),
+                            "net": int(row['net'])
+                        })
+                    sid_records.append({
+                        "date": date_val,
+                        "brokers": brokers_list
+                    })
+                # 按日期倒序排列
+                sid_records.sort(key=lambda x: x['date'], reverse=True)
+                out_path = history_dir / f"{sid}.json"
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    json.dump(sid_records, f, ensure_ascii=False, separators=(',', ':'))
+            
+            print(f"Generated {full_df['stock_id'].nunique()} per-stock history JSON files.")
+
+            # === 新增：輸出週彙整 JSON (data/brokers/agg/weekly/YYYY-Www.json) ===
+            weekly_dir = Path(config.DATA_DIR) / 'brokers' / 'agg' / 'weekly'
+            weekly_dir.mkdir(parents=True, exist_ok=True)
+            
+            full_df['date_parsed'] = pd.to_datetime(full_df['date'], format='%Y%m%d')
+            full_df['week_key'] = full_df['date_parsed'].dt.strftime('%G-W%V')
+            
+            for week_key, week_group in full_df.groupby('week_key'):
+                stocks_agg = {}
+                for sid, sid_group in week_group.groupby('stock_id'):
+                    broker_agg = []
+                    for broker_name, b_group in sid_group.groupby('broker_name'):
+                        broker_agg.append({
+                            "name": broker_name,
+                            "buy": int(b_group['buy'].sum()),
+                            "sell": int(b_group['sell'].sum()),
+                            "net": int(b_group['net'].sum())
+                        })
+                    stocks_agg[sid] = broker_agg
+                week_dates = sorted(week_group['date'].unique())
+                out = {
+                    "period": week_key,
+                    "from": week_dates[0],
+                    "to": week_dates[-1],
+                    "stocks": stocks_agg
+                }
+                out_path = weekly_dir / f"{week_key}.json"
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
+            
+            print("Generated weekly aggregation JSON files.")
+
+            # === 新增：輸出月彙整 JSON (data/brokers/agg/monthly/YYYYMM.json) ===
+            monthly_dir = Path(config.DATA_DIR) / 'brokers' / 'agg' / 'monthly'
+            monthly_dir.mkdir(parents=True, exist_ok=True)
+            
+            full_df['month_key'] = full_df['date'].str[:6]  # '202608'
+            
+            for month_key, month_group in full_df.groupby('month_key'):
+                stocks_agg = {}
+                for sid, sid_group in month_group.groupby('stock_id'):
+                    broker_agg = []
+                    for broker_name, b_group in sid_group.groupby('broker_name'):
+                        broker_agg.append({
+                            "name": broker_name,
+                            "buy": int(b_group['buy'].sum()),
+                            "sell": int(b_group['sell'].sum()),
+                            "net": int(b_group['net'].sum())
+                        })
+                    stocks_agg[sid] = broker_agg
+                month_dates = sorted(month_group['date'].unique())
+                out = {
+                    "period": month_key,
+                    "from": month_dates[0],
+                    "to": month_dates[-1],
+                    "stocks": stocks_agg
+                }
+                out_path = monthly_dir / f"{month_key}.json"
+                with open(out_path, 'w', encoding='utf-8') as f:
+                    json.dump(out, f, ensure_ascii=False, separators=(',', ':'))
+            
+            print("Generated monthly aggregation JSON files.")
         else:
             print("No records to append to Parquet.")
     else:

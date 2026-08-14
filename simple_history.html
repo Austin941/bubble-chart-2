@@ -449,25 +449,67 @@
       buyBody.innerHTML = '';
       sellBody.innerHTML = '';
       
+      let rows = [];
+      let usedAPI = false;
+
       try {
-        // Build dynamic pivot columns
-        let selectCols = `broker_name, `;
-        availableDates.forEach((date, i) => {
-            const mult = getMultiplierForDate(stockId, date);
-            selectCols += `CAST(SUM(CASE WHEN date = '${date}' THEN (CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) * ${mult} ELSE 0 END) AS INTEGER) AS day_${i}, `;
-        });
-        selectCols += `CAST(SUM(CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) AS INTEGER) as total_net`;
-        
-        const query = `
-          SELECT ${selectCols}
-          FROM 'history.parquet'
-          WHERE stock_id = '${stockId}'
-          GROUP BY broker_name
-          HAVING SUM(CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) != 0
-        `;
-        
-        const result = await conn.query(query);
-        const rows = result.toArray().map(r => r.toJSON());
+        const res = await fetch(`/api/v1/stock/${stockId}/trend?days=30`, { signal: AbortSignal.timeout(3000) });
+        if (res.ok) {
+           const apiData = await res.json();
+           const transformedRows = [];
+           for (const [brokerName, records] of Object.entries(apiData.brokers)) {
+             const row = { broker_name: brokerName };
+             let totalNet = 0;
+             availableDates.forEach((dateStr, i) => {
+               const record = records.find(r => r.date === dateStr);
+               let val = 0;
+               if (record) {
+                 val = (brokerName === '信用-當沖') ? record.buy : record.net;
+               }
+               const mult = getMultiplierForDate(stockId, dateStr);
+               row[`day_${i}`] = Math.round(val * mult);
+               totalNet += val;
+             });
+             row.total_net = totalNet;
+             if (totalNet !== 0 || brokerName === '信用-當沖') {
+               transformedRows.push(row);
+             }
+           }
+           rows = transformedRows;
+           usedAPI = true;
+           console.log("Used API successfully for", stockId);
+        } else {
+           throw new Error("API returned " + res.status);
+        }
+      } catch (apiError) {
+        console.warn("[Fallback] API failed, using DuckDB-WASM:", apiError.message);
+        try {
+          // Build dynamic pivot columns
+          let selectCols = `broker_name, `;
+          availableDates.forEach((date, i) => {
+              const mult = getMultiplierForDate(stockId, date);
+              selectCols += `CAST(SUM(CASE WHEN date = '${date}' THEN (CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) * ${mult} ELSE 0 END) AS INTEGER) AS day_${i}, `;
+          });
+          selectCols += `CAST(SUM(CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) AS INTEGER) as total_net`;
+          
+          const query = `
+            SELECT ${selectCols}
+            FROM 'history.parquet'
+            WHERE stock_id = '${stockId}'
+            GROUP BY broker_name
+            HAVING SUM(CASE WHEN broker_name = '信用-當沖' THEN buy ELSE net END) != 0
+          `;
+          
+          const result = await conn.query(query);
+          rows = result.toArray().map(r => r.toJSON());
+        } catch(dbErr) {
+          console.error(dbErr);
+          statusMsg.textContent = '查詢失敗: ' + dbErr.message;
+          return;
+        }
+      }
+      
+      try {
         
         // Show Whale Holdings if available
         if (holdersData && holdersData.stocks && holdersData.stocks[stockId]) {
