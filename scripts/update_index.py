@@ -15,10 +15,13 @@ def get_dates(folder_name):
     folder = DATA_DIR / folder_name
     if not folder.exists():
         return []
-    # 找所有的 .json 檔 (排除 .gitkeep 等)
-    files = [f.stem for f in folder.glob("*.json") if f.stem.isdigit()]
-    # 降序排序，最新日期在前面
-    return sorted(files, reverse=True)
+    # 支援 .json 與 .json.gz 檔
+    dates = set()
+    for f in folder.glob("*"):
+        name = f.name
+        if len(name) >= 8 and name[:8].isdigit() and (name.endswith('.json') or name.endswith('.json.gz')):
+            dates.add(name[:8])
+    return sorted(list(dates), reverse=True)
 
 def main():
     holders = get_dates("holders")
