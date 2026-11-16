@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from config import (
-    TDCC_CSV_URL, HOLDERS_DIR,
+    TDCC_CSV_URL, TDCC_CSV_FALLBACK_URLS, HOLDERS_DIR,
     WHALE_LEVEL, RETAIL_LEVELS, MID_LEVELS,
     HOLDER_LEVELS, REQUEST_TIMEOUT, RETRY_ATTEMPTS, RETRY_DELAY,
 )
@@ -26,20 +26,35 @@ def fetch_tdcc_csv() -> pd.DataFrame:
     一次下載全市場所有股票的股權分散 CSV。
     回傳欄位：資料日期, 證券代號, 持股分級, 人數, 股數, 占集保庫存數比例%
     """
-    log.info(f"⬇  下載 TDCC CSV：{TDCC_CSV_URL}")
     import urllib3
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-    resp = requests.get(
-        TDCC_CSV_URL,
-        timeout=REQUEST_TIMEOUT,
-        headers=get_request_headers(),
-        verify=False,
-    )
-    resp.raise_for_status()
-    resp.encoding = "utf-8-sig"   # 處理 BOM
 
-    df = pd.read_csv(StringIO(resp.text))
-    df.columns = df.columns.str.strip()
+    last_err = None
+    df = None
+    for url in TDCC_CSV_FALLBACK_URLS:
+        try:
+            log.info(f"⬇  下載 TDCC CSV：{url}")
+            resp = requests.get(
+                url,
+                timeout=REQUEST_TIMEOUT,
+                headers=get_request_headers(),
+                verify=False,
+            )
+            resp.raise_for_status()
+            resp.encoding = "utf-8-sig"   # 處理 BOM
+
+            candidate = pd.read_csv(StringIO(resp.text))
+            candidate.columns = candidate.columns.str.strip()
+            if "證券代號" not in candidate.columns and "stock_id" not in candidate.columns:
+                raise ValueError(f"非預期的 CSV 格式，欄位：{list(candidate.columns)[:5]}")
+            df = candidate
+            break
+        except Exception as e:
+            last_err = e
+            log.warning(f"  TDCC 來源失敗 ({url})：{e}")
+
+    if df is None:
+        raise last_err if last_err else RuntimeError("無法從任何 TDCC 來源下載 CSV")
 
     # 標準化欄名（TDCC 偶爾調整欄位名）
     rename_map = {

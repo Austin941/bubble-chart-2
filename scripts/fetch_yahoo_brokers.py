@@ -3,6 +3,7 @@ import re
 import time
 import os
 import gzip
+import threading
 import pandas as pd
 import requests
 from pathlib import Path
@@ -13,8 +14,22 @@ warnings.simplefilter('ignore')
 
 import config
 
+TW_TZ = timezone(timedelta(hours=8))
+_thread_local = threading.local()
+
+def _get_session():
+    if not hasattr(_thread_local, 'session'):
+        _thread_local.session = requests.Session()
+    return _thread_local.session
+
 def get_today_str():
-    return datetime.now().strftime('%Y%m%d')
+    """取得台灣時間最近一個交易日（若排程延遲過午夜或遇週末則回推至前一個週一~週五）。"""
+    now = datetime.now(TW_TZ)
+    if now.hour < 14:
+        now -= timedelta(days=1)
+    while now.weekday() >= 5:
+        now -= timedelta(days=1)
+    return now.strftime('%Y%m%d')
 
 def fetch_yahoo_stock(stock_id):
     # Yahoo TW handles raw IDs like '2330' and '8299' well without .TW or .TWO suffix in most cases.
@@ -24,19 +39,21 @@ def fetch_yahoo_stock(stock_id):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     try:
-        # Mandatory sleep to prevent Yahoo WAF 999 IP ban
-        time.sleep(1.5)
-        
-        for attempt in range(3):
-            res = requests.get(url, headers=headers, timeout=10, verify=False)
+        # Polite per-worker delay with session keep-alive to avoid Yahoo WAF 999 while staying fast
+        time.sleep(0.3)
+        session = _get_session()
+
+        res = None
+        for attempt in range(2):
+            res = session.get(url, headers=headers, timeout=8, verify=False)
             if res.status_code == 200:
                 break
             if res.status_code == 999:
-                time.sleep(2)
+                time.sleep(1.5)
                 continue
             return None
-            
-        if res.status_code != 200:
+
+        if res is None or res.status_code != 200:
             return None
         
         # Extract buyer and seller lists from HTML
@@ -95,25 +112,29 @@ def fetch_yahoo_stock(stock_id):
 
 def wait_until_target_time(target_hour=17, target_minute=0):
     """
-    等待直到台灣時間的指定時間。
+    等待直到台灣時間的指定時間（僅在開盤收盤銜接窗 15:00~17:00 等待；若 GitHub 排程延遲跨過午夜則直接執行）。
     """
-    tw_tz = timezone(timedelta(hours=8))
-    now = datetime.now(tw_tz)
+    now = datetime.now(TW_TZ)
     target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
-    
+
     # If manually triggered (not scheduled), skip the wait
     if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch':
-        print("Manual workflow_dispatch detected. Skipping time wait.")
+        print("Manual workflow_dispatch detected. Skipping time wait.", flush=True)
         return
-        
+
+    # If delayed past midnight (00:00~14:59 TW), yesterday's closing data is already published
+    if now.hour < 15:
+        print(f"Current TW time {now.strftime('%H:%M:%S')} is past midnight (cron delayed). Starting immediately.", flush=True)
+        return
+
     if now >= target_time:
-        print(f"Current time {now.strftime('%H:%M:%S')} is past {target_hour:02d}:{target_minute:02d}. Starting immediately.")
+        print(f"Current time {now.strftime('%H:%M:%S')} is past {target_hour:02d}:{target_minute:02d}. Starting immediately.", flush=True)
         return
-        
-    wait_seconds = (target_time - now).total_seconds()
-    print(f"Idling for {int(wait_seconds)} seconds until {target_hour:02d}:{target_minute:02d}...")
+
+    wait_seconds = min((target_time - now).total_seconds(), 3600)
+    print(f"Idling for {int(wait_seconds)} seconds until {target_hour:02d}:{target_minute:02d}...", flush=True)
     time.sleep(wait_seconds)
-    print("Time reached! Starting scrape...")
+    print("Time reached! Starting scrape...", flush=True)
 
 def fetch_t86_data(date_str):
     print(f'Fetching T86 data for {date_str}...')
@@ -344,10 +365,10 @@ def main():
     
     all_stocks_data = {}
     
-    print(f"Fetching data for {len(stock_ids)} stocks from Yahoo Finance...")
+    print(f"Fetching data for {len(stock_ids)} stocks from Yahoo Finance (date={date_str})...", flush=True)
     
     success_count = 0
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=4) as executor:
         future_to_id = {executor.submit(fetch_yahoo_stock, sid): sid for sid in stock_ids}
         
         for future in as_completed(future_to_id):
@@ -357,9 +378,9 @@ def main():
                 all_stocks_data[sid] = stock_data
                 success_count += 1
                 if success_count % 100 == 0:
-                    print(f"Progress: {success_count} stocks processed.")
+                    print(f"Progress: {success_count} stocks processed.", flush=True)
                     
-    print(f"Successfully fetched data for {success_count} stocks.")
+    print(f"Successfully fetched data for {success_count} stocks.", flush=True)
     
     # 抓取三大法人資料並整合
     t86_data = fetch_t86_data(date_str)
@@ -444,7 +465,7 @@ def main():
         if date_str not in index_data['brokers']:
             index_data['brokers'].insert(0, date_str)
             
-        index_data['last_updated'] = datetime.now().isoformat()
+        index_data['last_updated'] = datetime.now(TW_TZ).isoformat()
         
         with open(index_file, 'w', encoding='utf-8') as f:
             json.dump(index_data, f, ensure_ascii=False, separators=(',', ':'))

@@ -15,7 +15,11 @@ for _d in (HOLDERS_DIR, BROKERS_DIR, META_DIR, BRANCHES_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 # ── TDCC API ─────────────────────────────────────────────
-TDCC_CSV_URL = "https://smart.tdcc.com.tw/opendata/getOD.ashx?id=1-5"
+TDCC_CSV_URL = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5"
+TDCC_CSV_FALLBACK_URLS = [
+    TDCC_CSV_URL,
+    "https://smart.tdcc.com.tw/opendata/getOD.ashx?id=1-5",
+]
 
 # 持股分級定義（集保官方 15 個級距）
 HOLDER_LEVELS = {
